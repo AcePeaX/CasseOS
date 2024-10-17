@@ -11,5 +11,13 @@ dd if=/dev/zero of=boot.img bs=512 count=2880
 # Write bootloader into the image
 dd if=bin/boot.bin of=boot.img conv=notrunc
 # Convert img to vdi
+rm boot.vdi
 VBoxManage convertdd boot.img boot.vdi --format VDI
+```
+
+To update the VM in virtual box:
+
+```bash
+$VM_NAME=CasseOS    # Put yur VM name
+./scripts/updateVM.sh
 ```
