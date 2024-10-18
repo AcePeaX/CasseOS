@@ -64,6 +64,11 @@ after_print:
 msg db "Booting...", 0          ; Define the message with a null terminator
 
 [BITS 32]
+
+section .data
+    current_line dd 0      ; Define a 32-bit variable initialized to 0
+
+section .text
 protected_mode:
     ; Now in protected mode
     ; Update segment registers
@@ -77,7 +82,38 @@ protected_mode:
     ; Initialize stack pointer
     mov esp, 0x90000            ; Set stack pointer (adjust as needed)
 
+    ; Adjust cursor style
+    ; Set cursor start register (blinking cursor)
+    mov dx, 0x3D4          ; Address register port
+    mov al, 0x0A           ; Select cursor start register (0x0A)
+    out dx, al
+    inc dx                 ; Data register port (0x3D5)
+    mov al, 0x0E           ; Set bits 4-5 for visibility and 0-3 for start scan line (blinking)
+    out dx, al
+
+    ; Set cursor end register
+    mov dx, 0x3D4          ; Address register port
+    mov al, 0x0B           ; Select cursor end register (0x0B)
+    out dx, al
+    inc dx                 ; Data register port (0x3D5)
+    mov al, 0x0F           ; Set bits 0-3 for end scan line
+    out dx, al
+
     ; Display message in protected mode
+
+    mov eax, 160                ; Each line takes 160 bytes (80 chars * 2 bytes per char)
+    mov [current_line], eax     
+
+    mov esi, message
+    call print_string
+    call protected_back_to_line
+    mov esi, message
+    call print_string
+    mov esi, message
+    call print_string
+    call protected_back_to_line
+    mov esi, message
+    call print_string
     mov esi, message
     call print_string
 
@@ -85,29 +121,62 @@ protected_mode:
 hang:
     jmp hang
 
+
+
+
+protected_back_to_line:
+    mov eax, [current_line]
+    mov ecx, eax
+    mov edx, 0
+    mov ebx, 160
+    div ebx
+    sub ecx, edx
+    add ecx, 160
+    mov [current_line], ecx
+
 ; Print function in protected mode
 print_string:
     mov edx, 0xB8000            ; VGA text mode memory address
     mov bh, 0x00                ; Row (not used here)
     mov bl, 0x07                ; Attribute byte (light grey on black)
-    mov eax, 20         ; Each line takes 160 bytes (80 chars * 2 bytes per char)
-    add edx, eax         ; Move the cursor to the start of the next line
+    mov eax, [current_line]     ; Each line takes 160 bytes (80 chars * 2 bytes per char)
+    add edx, eax                ; Move the cursor to the start of the next line
     
 
 next_char:
     lodsb                       ; Load byte from [ESI] into AL, increment ESI
     cmp al, 0
-    je done                     ; If null terminator, exit
+    je done_next_char                     ; If null terminator, exit
     mov [edx], al               ; Write character to video memory
     inc edx
     mov [edx], bl               ; Write attribute byte
     inc edx
     jmp next_char
 
-done:
+done_next_char:
+    mov ecx, 0
+    mov cx, dx
+    shl cx, 3
+    shr cx, 3
+    mov [current_line], ecx
+    shr cx, 1
+    ; Set the cursor location in VGA
+    mov dx, 0x3D4          ; Address register port
+    mov al, 0x0F           ; Select cursor low byte register (0x0F)
+    out dx, al
+    inc dx                 ; Data register port (0x3D5)
+    mov al, cl
+    out dx, al
+
+    mov dx, 0x3D4          ; Address register port
+    mov al, 0x0E           ; Select cursor high byte register (0x0E)
+    out dx, al
+    inc dx                 ; Data register port (0x3D5)
+    mov al, ch
+    out dx, al
     ret
 
-message db "......", 0 ; Null-terminated string
+message db "start......", 0 ; Null-terminated string
 
 times 510-($-$$) db 0           ; Fill remaining space with zeros
 dw 0xAA55                       ; Boot signature
