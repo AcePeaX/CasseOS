@@ -25,7 +25,6 @@ VBoxManage storageattach $VM_NAME \
 # Remove existing medium from VirtualBox if it exists
 VBoxManage closemedium disk $DISK_IMAGE --delete 2>/dev/null
 
-rm boot.vdi
 # Convert the padded image into a VDI format
 VBoxManage convertfromraw boot.img $DISK_IMAGE --format VDI
 
