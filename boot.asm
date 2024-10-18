@@ -2,6 +2,7 @@
 [BITS 16]                 ; Set 16-bit mode
 ORG 0x7C00                ; Bootloader loads at memory address 0x7C00
 
+    jmp start
 ; GDT Setup
 gdt_start:
     ; Null descriptor (8 bytes)
@@ -89,6 +90,9 @@ print_string:
     mov edx, 0xB8000            ; VGA text mode memory address
     mov bh, 0x00                ; Row (not used here)
     mov bl, 0x07                ; Attribute byte (light grey on black)
+    mov eax, 20         ; Each line takes 160 bytes (80 chars * 2 bytes per char)
+    add edx, eax         ; Move the cursor to the start of the next line
+    
 
 next_char:
     lodsb                       ; Load byte from [ESI] into AL, increment ESI
@@ -103,7 +107,7 @@ next_char:
 done:
     ret
 
-message db "Protected Mode!", 0 ; Null-terminated string
+message db "......", 0 ; Null-terminated string
 
 times 510-($-$$) db 0           ; Fill remaining space with zeros
 dw 0xAA55                       ; Boot signature
