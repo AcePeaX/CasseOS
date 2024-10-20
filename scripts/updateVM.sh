@@ -1,17 +1,24 @@
 #!/bin/bash
 
 # Define paths
-BOOTLOADER="boot.asm"
+BOOTLOADER_FIRST="boot-first.asm"
+BOOTLOADER_SECOND="boot-second.asm"
+OUTPUT_BIN_FIRST="boot-first.bin"
+OUTPUT_BIN_SECOND="boot-second.bin"
 OUTPUT_BIN="boot.bin"
 DISK_IMAGE="boot.vdi"
 VM_NAME="CasseOS"  # Replace with your VirtualBox VM name
 STORAGE_CONTROLLER="SATA"  # Replace with your controller name (e.g., SATA Controller)
 
 # Assemble the bootloader
-nasm -f bin $BOOTLOADER -o ./bin/$OUTPUT_BIN
+nasm -f bin $BOOTLOADER_FIRST -o ./bin/$OUTPUT_BIN_FIRST
+nasm -f bin $BOOTLOADER_SECOND -o ./bin/$OUTPUT_BIN_SECOND
 
 # Navigate to the bin directory
 cd bin
+
+# Concatenate the two bootloaders
+cat $OUTPUT_BIN_FIRST $OUTPUT_BIN_SECOND > $OUTPUT_BIN
 
 # Pad the bootloader and convert into a VDI format
 dd if=/dev/zero of=boot.img bs=1M count=10
