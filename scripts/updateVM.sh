@@ -18,11 +18,12 @@ nasm -f bin $BOOTLOADER_SECOND -o ./bin/$OUTPUT_BIN_SECOND
 cd bin
 
 # Concatenate the two bootloaders
-cat $OUTPUT_BIN_FIRST $OUTPUT_BIN_SECOND > $OUTPUT_BIN
 
 # Pad the bootloader and convert into a VDI format
 dd if=/dev/zero of=boot.img bs=1M count=10
-dd if=$OUTPUT_BIN of=boot.img conv=notrunc
+dd if=$OUTPUT_BIN_FIRST of=boot.img conv=notrunc
+dd if=$OUTPUT_BIN_SECOND of=boot.img bs=512 seek=2 conv=notrunc
+
 
 # Detach the old disk from the VM
 VBoxManage storageattach $VM_NAME \

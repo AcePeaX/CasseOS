@@ -10,8 +10,12 @@ start:
     mov ss, ax              ; Stack segment to 0
     mov sp, 0x7C00          ; Stack pointer
 
+    mov [boot_drive], dl    ; Store the boot drive number from DL
+
+    mov ax, second_stage_segment
+    mov es, ax
+
     ; Load the second-stage bootloader
-    mov si, second_stage_segment
     mov bx, 0x0000          ; Offset 0x0000
     mov dh, num_sectors     ; Number of sectors to read
     mov dl, [boot_drive]    ; Drive number (from BIOS)
@@ -49,8 +53,8 @@ print_string:
     ret
 
 boot_drive db 0             ; BIOS sets the boot drive number here
-second_stage_segment dw 0x0800  ; Load at 0x0800:0x0000
-num_sectors db 4            ; Adjust based on the size of your second-stage bootloader
+second_stage_segment dw 0x8000  ; Load at 0x0800:0x0000
+num_sectors db 1            ; Adjust based on the size of your second-stage bootloader
 
 disk_error_msg db "Disk Read Error", 0
 
