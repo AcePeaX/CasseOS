@@ -22,6 +22,8 @@ start:
     call disk_load
 
     ; Jump to second-stage bootloader
+    mov si, booting_msg
+    call print_string
     jmp second_stage_segment:0x0000
 
 disk_load:
@@ -57,6 +59,7 @@ second_stage_segment dw 0x8000  ; Load at 0x0800:0x0000
 num_sectors db 1            ; Adjust based on the size of your second-stage bootloader
 
 disk_error_msg db "Disk Read Error", 0
+booting_msg db "Booting...", 0
 
 times 510 - ($ - $$) db 0   ; Fill the rest with zeros
 dw 0xAA55                   ; Boot signature
