@@ -1,0 +1,36 @@
+# CasseOS License
+
+Version 1.0  
+Effective Date: 01 October 2024
+
+## 1. Permission for Use
+You are free to:
+- **Use** this software for any purpose, including personal, academic, or non-profit use.
+- **Distribute** the software freely or for a fee, provided that you comply with the terms outlined below.
+
+## 2. Restrictions on Commercial Use
+- **Non-Profit Use Only:** You are prohibited from making a profit from this software. You may sell or distribute this software, but only for the purpose of covering the cost of distribution, such as server fees or media costs. You may not charge more than the direct cost of distribution.
+- **No Commercial Integration:** This software may not be integrated into any product or service that is sold for profit without the explicit, written permission of the original author.
+- **No Commercial Licensing:** You are not permitted to sublicense this software for commercial purposes or offer it as part of any commercial software or service without permission.
+
+## 3. Modification and Redistribution
+- You may **modify** and **distribute** the software freely under the following conditions:
+  - Any derivative works must also comply with this license, including the non-commercial and non-profit provisions.
+  - All modifications must be clearly documented.
+  - The original copyright notice and this license must be included in any distributed copies or derivative works.
+
+## 4. Attribution
+- Any distribution of this software, modified or unmodified, must include proper attribution to the original author(s). The following text must be included in any distribution:
+
+```
+This software is licensed under the CasseOS License, Version 1.0.
+```
+
+## 5. Disclaimer of Warranty
+- This software is provided "as is", without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement. In no event shall the author(s) be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the software or the use or other dealings in the software.
+
+## 6. Termination
+- Any violation of the terms outlined in this license will result in an immediate termination of your rights under this license. Upon termination, you must cease all use and distribution of this software.
+
+## 7. License Amendments
+- The author reserves the right to publish future versions of this license. Any future versions will not retroactively affect your rights under this version.
