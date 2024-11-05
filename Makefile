@@ -3,6 +3,9 @@
 # $^ = all dependencies
 
 
+ELF_TYPE = "i386"
+#ELF_TYPE = "i686"
+
 
 all:
 	make bin/kernel.bin
@@ -15,11 +18,11 @@ virtualbox:
 	./scripts/concat_and_launch.sh --virtualbox
 
 # Notice how dependencies are built as needed
-bin/kernel.bin: bootloader/*
-	./scripts/compile_kernel.sh
+bin/kernel.bin: kernel/*
+	ELF_TYPE=$(ELF_TYPE) ./scripts/compile_kernel.sh
 
 
-bin/bootloader.bin: kernel/*
+bin/bootloader.bin: bootloader/*
 	./scripts/compile_bootloader.sh
 
 bin/os-image.bin: bin/kernel.bin bin/bootloader.bin
