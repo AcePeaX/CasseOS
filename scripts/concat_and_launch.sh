@@ -44,24 +44,25 @@ dd if=$OUTPUT_BIN of=boot.img conv=notrunc
 
 
 
-# Detach the old disk from the VM
-VBoxManage storageattach $VM_NAME \
-    --storagectl "$STORAGE_CONTROLLER" \
-    --port 0 --device 0 --medium none
-
-# Remove existing medium from VirtualBox if it exists
-VBoxManage closemedium disk $DISK_IMAGE --delete 2>/dev/null
-
-# Convert the padded image into a VDI format
-VBoxManage convertfromraw boot.img $DISK_IMAGE --format VDI
-
-
-# Attach the new disk to the VM
-VBoxManage storageattach $VM_NAME \
-    --storagectl "$STORAGE_CONTROLLER" \
-    --port 0 --device 0 --type hdd --medium $DISK_IMAGE
 
 if [ "$virtualbox" = true ]; then
+
+    # Detach the old disk from the VM
+    VBoxManage storageattach $VM_NAME \
+        --storagectl "$STORAGE_CONTROLLER" \
+        --port 0 --device 0 --medium none
+
+    # Remove existing medium from VirtualBox if it exists
+    VBoxManage closemedium disk $DISK_IMAGE --delete 2>/dev/null
+
+    # Convert the padded image into a VDI format
+    VBoxManage convertfromraw boot.img $DISK_IMAGE --format VDI
+
+
+    # Attach the new disk to the VM
+    VBoxManage storageattach $VM_NAME \
+        --storagectl "$STORAGE_CONTROLLER" \
+        --port 0 --device 0 --type hdd --medium $DISK_IMAGE
     # Restart the VirtualBox VM
     VBoxManage controlvm $VM_NAME poweroff 2>/dev/null
     VBoxManage startvm $VM_NAME --type gui  # Use 'gui' to see the VM window
