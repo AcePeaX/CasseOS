@@ -1,8 +1,6 @@
 #!/bin/bash
 
 # Define paths
-OUTPUT_BOOTLOADER_BIN="bootloader.bin"
-OUTPUT_KERNEL_BIN="kernel.bin"
 OUTPUT_BIN="os-image.bin"
 DISK_IMAGE="os-image.vdi"
 VM_NAME="CasseOS"  # Replace with your VirtualBox VM name
@@ -32,20 +30,14 @@ fi
 
 
 # Navigate to the bin directory
-cd bin
+cd .bin
 
-# Concatenate the bootloader and the kernel
-cat $OUTPUT_BOOTLOADER_BIN $OUTPUT_KERNEL_BIN > $OUTPUT_BIN
 
 # Pad the bootloader and convert into a VDI format
 dd if=/dev/zero of=boot.img bs=1M count=10
 dd if=$OUTPUT_BIN of=boot.img conv=notrunc
 #dd if=$OUTPUT_BIN_SECOND of=boot.img bs=512 seek=2 conv=notrunc
 
-
-
-
-if [ "$virtualbox" = true ]; then
 
     # Detach the old disk from the VM
     VBoxManage storageattach $VM_NAME \
@@ -59,6 +51,8 @@ if [ "$virtualbox" = true ]; then
     VBoxManage convertfromraw boot.img $DISK_IMAGE --format VDI
 
 
+if [ "$virtualbox" = true ]; then
+
     # Attach the new disk to the VM
     VBoxManage storageattach $VM_NAME \
         --storagectl "$STORAGE_CONTROLLER" \
@@ -70,7 +64,7 @@ fi
 
 if [ "$qemu" = true ]; then
     if [ "$debug" = true ]; then
-        qemu-system-x86_64 -hda $DISK_IMAGE -monitor stdio -display sdl -S -s
+        qemu-system-x86_64 -hda $DISK_IMAGE -monitor stdio -display sdl -s
     else
         qemu-system-x86_64 -hda $DISK_IMAGE -monitor stdio -display sdl
     fi
