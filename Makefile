@@ -30,7 +30,7 @@ CFLAGS = -g
 all: os-image
 
 $(BIN_DIR)/kernel.bin: $(BUILD_DIR)/kernel/kernel_entry.o ${OBJ}
-	@$(LD) -o $@ -Ttext 0x1000 $^ --oformat binary
+	@$(LD) -o $@ -Ttext 0x1000  --entry=_start $^ --oformat binary
 
 $(BIN_DIR)/bootloader.bin: bootloader/*
 	@./scripts/create_file_path.sh $@
@@ -46,7 +46,8 @@ bootloader: bootloader.bin
 
 
 $(BIN_DIR)/os-image.bin: $(BIN_DIR)/bootloader.bin $(BIN_DIR)/kernel.bin
-	cat $^ > $(BIN_DIR)/os-image.bin
+	@cat $^ > $(BIN_DIR)/os-image.bin
+	@echo "Successfully compiled the OS"
 os-image.bin: $(BIN_DIR)/os-image.bin
 os-image: os-image.bin
 

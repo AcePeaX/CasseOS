@@ -3,6 +3,14 @@ void dummy_test_entrypoint() {
 }
 
 void main() {
+    char hello_world[30] = "CasseOS kernel started!";
     char* video_memory = (char*) 0xb8000;
-    *video_memory = 'X';
+    for(int i=0;i<20;i++){
+        *video_memory = hello_world[i];
+        video_memory+=2;
+    }
+    for(int i=0;i<25*80-20;i++){
+        *video_memory = 0;
+        video_memory+=2;
+    }
 }
