@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # Define paths
-BOOTLOADER="bootloader.asm"
-OUTPUT_BIN="boot-first"
-OUTPUT_BIN="boot.bin"
-DISK_IMAGE="boot.vdi"
+OUTPUT_BOOTLOADER_BIN="bootloader.bin"
+OUTPUT_KERNEL_BIN="kernel.bin"
+OUTPUT_BIN="os-image.bin"
+DISK_IMAGE="os-image.vdi"
 VM_NAME="CasseOS"  # Replace with your VirtualBox VM name
 STORAGE_CONTROLLER="SATA"  # Replace with your controller name (e.g., SATA Controller)
 
@@ -31,16 +31,16 @@ if [ "$debug" = true ]; then
 fi
 
 # Assemble the bootloader
-cd bootloader
-nasm -f bin -g $BOOTLOADER -o ../bin/$OUTPUT_BIN
-#objcopy -O binary ./bin/$OUTPUT_BIN.elf ./bin/$OUTPUT_BIN.bin
+./scripts/compile_bootloader.sh
 
-#nasm -f bin $BOOTLOADER_SECOND -o ./bin/$OUTPUT_BIN_SECOND
+# Compile the kernel
+./scripts/compile_kernel.sh
 
 # Navigate to the bin directory
-cd ../bin
+cd bin
 
-# Concatenate the two bootloaders
+# Concatenate the bootloader and the kernel
+cat $OUTPUT_BOOTLOADER_BIN $OUTPUT_KERNEL_BIN > $OUTPUT_BIN
 
 # Pad the bootloader and convert into a VDI format
 dd if=/dev/zero of=boot.img bs=1M count=10
@@ -74,8 +74,8 @@ fi
 
 if [ "$qemu" = true ]; then
     if [ "$debug" = true ]; then
-        qemu-system-x86_64 -hda boot.vdi -monitor stdio -display sdl -S -s
+        qemu-system-x86_64 -hda $DISK_IMAGE -monitor stdio -display sdl -S -s
     else
-        qemu-system-x86_64 -hda boot.vdi -monitor stdio -display sdl
+        qemu-system-x86_64 -hda $DISK_IMAGE -monitor stdio -display sdl
     fi
 fi
