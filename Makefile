@@ -12,6 +12,8 @@ LD=i386-elf-ld # Or /usr/local/cross/bin/i386-elf-ld
 GDB=i386-elf-gdb # Or /usr/local/cross/bin/i386-elf-gdb
 #GDB="i686-elf-gdb" or /usr/local/cross/bin/i686-elf-gdb
 
+QEMU=qemu-system-i386
+#QEMU=qemu-system-x86_64
 
 BUILD_DIR := .build
 BIN_DIR := .bin
@@ -49,12 +51,12 @@ os-image.bin: $(BIN_DIR)/os-image.bin
 os-image: os-image.bin
 
 qemu: $(BIN_DIR)/os-image.bin
-	@./scripts/launch.sh
+	@$(QEMU) -fda $(BIN_DIR)/os-image.bin -monitor stdio -display sdl
 
 run: qemu
 
 debug: $(BIN_DIR)/os-image.bin $(BUILD_DIR)/kernel.elf
-	@./scripts/launch.sh --debug &
+	$(QEMU) -fda $(BIN_DIR)/os-image.bin -monitor stdio -display sdl -s &
 	${GDB} -ex "target remote localhost:1234" -ex "symbol-file .build/kernel.elf"
 
 virtualbox: $(BIN_DIR)/os-image.bin

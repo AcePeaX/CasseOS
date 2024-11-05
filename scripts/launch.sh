@@ -39,16 +39,16 @@ dd if=$OUTPUT_BIN of=boot.img conv=notrunc
 #dd if=$OUTPUT_BIN_SECOND of=boot.img bs=512 seek=2 conv=notrunc
 
 
-    # Detach the old disk from the VM
-    VBoxManage storageattach $VM_NAME \
-        --storagectl "$STORAGE_CONTROLLER" \
-        --port 0 --device 0 --medium none
+# Detach the old disk from the VM
+VBoxManage storageattach $VM_NAME \
+    --storagectl "$STORAGE_CONTROLLER" \
+    --port 0 --device 0 --medium none
 
-    # Remove existing medium from VirtualBox if it exists
-    VBoxManage closemedium disk $DISK_IMAGE --delete 2>/dev/null
+# Remove existing medium from VirtualBox if it exists
+VBoxManage closemedium disk $DISK_IMAGE --delete 2>/dev/null
 
-    # Convert the padded image into a VDI format
-    VBoxManage convertfromraw boot.img $DISK_IMAGE --format VDI
+# Convert the padded image into a VDI format
+VBoxManage convertfromraw boot.img $DISK_IMAGE --format VDI
 
 
 if [ "$virtualbox" = true ]; then

@@ -7,7 +7,7 @@ CasseOS is my custom OS, as an experiment.
 
 There is a makefile containing the commands:
 
-- `GCC` and `LD` and `GDB` variables to set to either `i386` or `i686` cross compiler/binutils/debugger
+- `GCC` and `LD` and `GDB` and `QEMU` variables to set to either `i386` or `i686` cross compiler/binutils/debugger
 - `make clean`
 - `make all`
 - `make run` or `make qemu`
