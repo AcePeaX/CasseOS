@@ -3,10 +3,6 @@
 # $^ = all dependencies
 
 
-ELF_TYPE = "i386"
-#ELF_TYPE = "i686"
-
-
 GCC=i386-elf-gcc # Or /usr/local/cross/bin/i386-elf-gcc
 # GCC="i386-elf-gcc" or /usr/local/cross/bin/i686-elf-gcc
 
@@ -54,6 +50,8 @@ os-image: os-image.bin
 
 qemu: $(BIN_DIR)/os-image.bin
 	@./scripts/launch.sh
+
+run: qemu
 
 debug: $(BIN_DIR)/os-image.bin $(BUILD_DIR)/kernel.elf
 	@./scripts/launch.sh --debug &

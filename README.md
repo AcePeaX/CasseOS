@@ -7,9 +7,11 @@ CasseOS is my custom OS, as an experiment.
 
 There is a makefile containing the commands:
 
-- `ELF_TYPE` variable set to either `i386` or `i686`
+- `GCC` and `LD` and `GDB` variables to set to either `i386` or `i686` cross compiler/binutils/debugger
 - `make clean`
 - `make all`
+- `make run` or `make qemu`
+- `make debug`
 - `make virtualbox`
 - `make kernel`
 - `make bootloader`
