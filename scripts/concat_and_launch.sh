@@ -9,7 +9,7 @@ VM_NAME="CasseOS"  # Replace with your VirtualBox VM name
 STORAGE_CONTROLLER="SATA"  # Replace with your controller name (e.g., SATA Controller)
 
 # Default values
-qemu=false
+qemu=true
 debug=false
 virtualbox=false
 
@@ -17,7 +17,7 @@ virtualbox=false
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --qemu) qemu=true ;;  # If -a or --flag-a is passed, set flag_a to true
-        --virtualbox) virtualbox=true ;;  # If -b or --flag-b is passed, set flag_b to true
+        --virtualbox) virtualbox=true; qemu=false ;;  # If -b or --flag-b is passed, set flag_b to true
         --debug) debug=true ;;  # If -b or --flag-b is passed, set flag_b to true
         *) echo "Unknown option: $1"; exit 1 ;;
     esac
@@ -30,11 +30,6 @@ if [ "$debug" = true ]; then
     fi
 fi
 
-# Assemble the bootloader
-./scripts/compile_bootloader.sh
-
-# Compile the kernel
-./scripts/compile_kernel.sh
 
 # Navigate to the bin directory
 cd bin
