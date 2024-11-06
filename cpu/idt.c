@@ -1,5 +1,4 @@
 #include "idt.h"
-#include "../kernel/util.h"
 
 /* Define the IDT and IDT register */
 idt_gate_t idt[IDT_ENTRIES];
