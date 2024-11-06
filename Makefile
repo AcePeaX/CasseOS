@@ -46,6 +46,7 @@ bootloader: bootloader.bin
 
 
 $(BIN_DIR)/os-image.bin: $(BIN_DIR)/bootloader.bin $(BIN_DIR)/kernel.bin
+	@python3 ./scripts/check-size-matching.py $(BIN_DIR)/kernel.bin
 	@cat $^ > $(BIN_DIR)/os-image.bin
 	@echo "Successfully compiled the OS"
 os-image.bin: $(BIN_DIR)/os-image.bin
