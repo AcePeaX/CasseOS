@@ -16,6 +16,9 @@ There is a makefile containing the commands:
 - `make kernel`
 - `make bootloader`
 
+> [!IMPORTANT]  
+> Use regularly `make num_sectors` to verify the kernel's size. If it changes, change it in `bootloader/bootloader.asm`, specifically `NUM_SECTORS` at the start of the file to the correct value.
+
 ## Install development environment
 You have to install a cross compiler, and a cross debugger. `gcc` and `gdb`.
 

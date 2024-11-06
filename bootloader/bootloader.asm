@@ -1,6 +1,11 @@
 %ifndef ELF_FORMAT
     [org 0x7C00]
 %endif
+
+; Default to 1 sector if NUM_SECTORS is not defined
+%ifndef NUM_SECTORS
+%define NUM_SECTORS 3
+%endif
 KERNEL_OFFSET equ 0x1000 ; The same one we used when linking the kernel
 
     mov [BOOT_DRIVE], dl ; Remember that the BIOS sets us the boot drive in 'dl' on boot
@@ -29,7 +34,7 @@ load_kernel:
     call print_nl
 
     mov bx, KERNEL_OFFSET ; Read from disk and store in 0x1000
-    mov dh, 2
+    mov dh, NUM_SECTORS   ; Number of sectors to read
     mov dl, [BOOT_DRIVE]
     call disk_load
     ret

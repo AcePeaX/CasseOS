@@ -30,7 +30,7 @@ CFLAGS = -g
 all: os-image
 
 $(BIN_DIR)/kernel.bin: $(BUILD_DIR)/kernel/kernel_entry.o ${OBJ}
-	@$(LD) -o $@ -Ttext 0x1000  --entry=_start $^ --oformat binary
+	$(LD) -o $@ -Ttext 0x1000 $^ --oformat binary
 
 $(BIN_DIR)/bootloader.bin: bootloader/*
 	@./scripts/create_file_path.sh $@
@@ -63,20 +63,23 @@ debug: $(BIN_DIR)/os-image.bin $(BUILD_DIR)/kernel.elf
 virtualbox: $(BIN_DIR)/os-image.bin
 	@./scripts/launch.sh --virtualbox
 
+num_sectors: $(BIN_DIR)/kernel.bin
+	@KERNEL_BIN_PATH=$(BIN_DIR)/kernel.bin ./scripts/num_sectors.sh
+
 
 # Generic rules for wildcards
 # To make an object, always compile from its .c
 $(BUILD_DIR)/%.o: %.c ${HEADERS}
 	@./scripts/create_file_path.sh $@
-	@$(GCC) ${CFLAGS} -ffreestanding -c $< -o $@
+	$(GCC) ${CFLAGS} -ffreestanding -c $< -o $@
 
 
 $(BUILD_DIR)/%.o: %.asm
 	@./scripts/create_file_path.sh $@
-	@nasm $< -f elf -i$(dir $<) -D ELF_FORMAT -o $@
+	nasm $< -f elf -i$(dir $<) -D ELF_FORMAT -o $@
 
 $(BIN_DIR)/%.bin: %.asm
-	@nasm $< -f bin -o $@
+	nasm $< -f bin -o $@
 
 
 
