@@ -18,10 +18,10 @@ QEMU=qemu-system-i386
 BUILD_DIR := .build
 BIN_DIR := .bin
 
-C_SOURCES = $(wildcard kernel/*.c drivers/*.c)
-HEADERS = $(wildcard kernel/*.h drivers/*.h)
+C_SOURCES = $(wildcard kernel/*.c drivers/*.c cpu/*.c)
+HEADERS = $(wildcard kernel/*.h drivers/*.h cpu/*.o)
 # Nice syntax for file extension replacement
-OBJ := $(patsubst %.c, $(BUILD_DIR)/%.o, $(C_SOURCES))
+OBJ := $(patsubst %.c, $(BUILD_DIR)/%.o, $(C_SOURCES) $(BUILD_DIR)/cpu/interrupt.o)
 
 #$(info OBJ files: $(OBJ))
 # -g: Use debugging symbols in gcc
@@ -66,6 +66,9 @@ virtualbox: $(BIN_DIR)/os-image.bin
 num_sectors: $(BIN_DIR)/kernel.bin
 	@KERNEL_BIN_PATH=$(BIN_DIR)/kernel.bin ./scripts/num_sectors.sh
 
+info:
+	@echo "C_SOURCES = $(C_SOURCES)"
+	@echo "OBJ = $(OBJ)"
 
 # Generic rules for wildcards
 # To make an object, always compile from its .c
