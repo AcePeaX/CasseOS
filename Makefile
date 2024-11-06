@@ -25,7 +25,7 @@ OBJ := $(patsubst %.c, $(BUILD_DIR)/%.o, $(C_SOURCES) $(BUILD_DIR)/cpu/interrupt
 
 #$(info OBJ files: $(OBJ))
 # -g: Use debugging symbols in gcc
-CFLAGS = -g #-m32 -nostdlib -nostdinc -fno-builtin -fno-stack-protector -nostartfiles -nodefaultlibs \
+CFLAGS = -g -m32 -nostdlib -nostdinc -fno-builtin -fno-stack-protector -nostartfiles -nodefaultlibs \
 		-Wall -Wextra -Werror
 
 all: os-image
