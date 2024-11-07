@@ -13,7 +13,13 @@
 #define SHIFT 0x2A
 #define CAP_LOCK 0x3A
 
-char key_buffer[256];
+
+#define KEY_BUFFER_SIZE 256
+char key_buffer[KEY_BUFFER_SIZE];
+uint8_t key_buffer_head = 0;
+uint8_t key_buffer_tail = 0;
+
+KeyState key_state = {0};
 
 uint8_t keyboard_auto_display = 1;
 uint8_t keyboard_ctrl = 0;
@@ -38,36 +44,43 @@ const char sc_ascii_qwerti_cap[] = { '?', '?', '1', '2', '3', '4', '5', '6',
         'H', 'J', 'K', 'L', ';', '\'', '`', '?', '\\', 'Z', 'X', 'C', 'V', 
         'B', 'N', 'M', ',', '.', '/', '?', '?', '?', ' '};
 
-const char sc_ascii_azerti[] = { '?', '?', '&', 'é', '"', '\'', '(', '-',     
-    'è', '_', 'ç', 'à', ')', '=', '?', '?', 'a', 'z', 'e', 'r', 't', 'y', 
+const char sc_ascii_azerti[] = { '?', '?', '&', 0x1A /*é*/, '"', '\'', '(', '-',     
+    0x1A /*è*/, '_', 0x1A /*ç*/, 0x1A/*à*/, ')', '=', '?', '?', 'a', 'z', 'e', 'r', 't', 'y', 
         'u', 'i', 'o', 'p', '^', '$', '?', '?', 'q', 's', 'd', 'f', 'g', 
         'h', 'j', 'k', 'l', 'm', '?', '*', '?', '*', 'w', 'x', 'c', 'v', 
         'b', 'n', ',', ',', ';', ':', '!', '?', '?', ' '};
 
 const char sc_ascii_azerti_cap[] = { '?', '?', '1', '2', '3', '4', '5', '6',     
-    '7', '8', '9', '0', '°', '+', '?', '?', 'A', 'Z', 'E', 'R', 'T', 'Y', 
-        'U', 'I', 'O', 'P', '¨', '£', '?', '?', 'Q', 'S', 'D', 'F', 'G', 
+    '7', '8', '9', '0', 0x1A/*°*/, '+', '?', '?', 'A', 'Z', 'E', 'R', 'T', 'Y', 
+        'U', 'I', 'O', 'P', 0x1A/*¨*/, 0x1A /*£*/, '?', '?', 'Q', 'S', 'D', 'F', 'G', 
         'H', 'J', 'K', 'L', 'M', '?', '*', '?', '*', 'W', 'X', 'C', 'V', 
-        'B', 'N', '?', '?', '.', '/', '§', '?', '?', ' '};
+        'B', 'N', '?', '?', '.', '/', 0x1A/*§*/, '?', '?', ' '};
 
 const char* sc_ascii = sc_ascii_azerti;
 const char* sc_ascii_cap = sc_ascii_azerti_cap;
+
+
+uint8_t keyboard_get_ascii_from_scancode(uint8_t scancode);
+void buffer_add(char scancode);
 
 static void keyboard_callback(registers_t *regs) {
     /* The PIC leaves us the scancode in port 0x60 */
     uint8_t scancode = port_byte_in(0x60);
 
+    buffer_add(scancode);
+    UNUSED(regs);
+}
+
+
+uint8_t keyboard_get_ascii_from_scancode(uint8_t scancode){
     uint8_t rawcode = scancode & 0b01111111;
     uint8_t up = (scancode >> 7) & 0b1;
     uint8_t cap = keyboard_cap_lock ^ keyboard_shift;
     
     if(scancode==CAP_LOCK){
         keyboard_cap_lock=1-keyboard_cap_lock;
-        return;
+        return 0;
     }
-    if (rawcode > SC_MAX) {
-        return;
-    };
     if(rawcode==CTRL){
         if(up){
             keyboard_ctrl=0;
@@ -75,7 +88,7 @@ static void keyboard_callback(registers_t *regs) {
         else{
             keyboard_ctrl=1;
         }
-        return;
+        return 0;
     }
     if(rawcode==SHIFT){
         if(up){
@@ -84,18 +97,13 @@ static void keyboard_callback(registers_t *regs) {
         else{
             keyboard_shift=1;
         }
-        return;
+        return 0;
     }
     
     if (scancode == BACKSPACE) {
-        backspace(key_buffer);
-        if(keyboard_auto_display==1){
-            kprint_backspace();
-        }
+        return BACKSPACE;
     } else if (scancode == ENTER) {
-        if(keyboard_auto_display==1){kprint("\n");}
-        user_input(key_buffer); /* kernel-controlled function */
-        key_buffer[0] = '\0';
+        return ENTER;
     } 
     else if(!up) {
         char letter;
@@ -104,12 +112,17 @@ static void keyboard_callback(registers_t *regs) {
         } else {
             letter = sc_ascii[(int)scancode];
         }
-        /* Remember that kprint only accepts char[] */
-        char str[2] = {letter, '\0'};
-        append(key_buffer, letter);
-        if(keyboard_auto_display==1){kprint(str);}
+        return letter;
     }
-    UNUSED(regs);
+    return 0;
+}
+
+void buffer_add(char scancode) {
+    int next = (key_buffer_head + 1) % KEY_BUFFER_SIZE;
+    if (next != key_buffer_tail) {  // Only add if buffer is not full
+        key_buffer[key_buffer_head] = scancode;
+        key_buffer_head = next;
+    }
 }
 
 void set_keyboard_type(uint8_t type){
