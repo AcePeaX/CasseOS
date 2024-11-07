@@ -19,7 +19,7 @@ BUILD_DIR := .build
 BIN_DIR := .bin
 
 C_SOURCES = $(shell find kernel drivers cpu libc -name '*.c')
-HEADERS = $(shell find kernel drivers cpu libc -name '*.o')
+HEADERS = $(shell find kernel drivers cpu libc -name '*.h')
 # Nice syntax for file extension replacement
 OBJ := $(patsubst %.c, $(BUILD_DIR)/%.o, $(C_SOURCES) $(BUILD_DIR)/cpu/interrupt.o)
 

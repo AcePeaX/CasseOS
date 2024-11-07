@@ -57,6 +57,9 @@ bool handle_command_line(uint8_t scancode, char* command){
         if(cmd_cursor>cmd_len){cmd_cursor=cmd_len;}
     }
     else{
+        if(cmd_len==MAX_COMMAND_LENGTH){
+            return false;
+        }
         char c = keyboard_get_ascii_from_scancode(scancode);
         if(c!=0){
             if(cmd_cursor!=cmd_len){
