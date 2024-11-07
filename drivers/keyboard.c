@@ -4,14 +4,7 @@
 #include "screen.h"
 #include "../libc/string.h"
 #include "../libc/function.h"
-#include "../kernel/kernel.h"
 #include <stdint.h>
-
-#define BACKSPACE 0x0E
-#define ENTER 0x1C
-#define CTRL 0x1D
-#define SHIFT 0x2A
-#define CAP_LOCK 0x3A
 
 
 #define KEY_BUFFER_SIZE 256
@@ -61,13 +54,13 @@ const char* sc_ascii_cap = sc_ascii_azerti_cap;
 
 
 uint8_t keyboard_get_ascii_from_scancode(uint8_t scancode);
-void buffer_add(char scancode);
+void keyboard_buffer_push(char scancode);
 
 static void keyboard_callback(registers_t *regs) {
     /* The PIC leaves us the scancode in port 0x60 */
     uint8_t scancode = port_byte_in(0x60);
 
-    buffer_add(scancode);
+    keyboard_buffer_push(scancode);
     UNUSED(regs);
 }
 
@@ -117,12 +110,21 @@ uint8_t keyboard_get_ascii_from_scancode(uint8_t scancode){
     return 0;
 }
 
-void buffer_add(char scancode) {
+void keyboard_buffer_push(char scancode) {
     int next = (key_buffer_head + 1) % KEY_BUFFER_SIZE;
     if (next != key_buffer_tail) {  // Only add if buffer is not full
         key_buffer[key_buffer_head] = scancode;
         key_buffer_head = next;
     }
+}
+
+char keyboard_buffer_pop(){
+    if (key_buffer_head != key_buffer_tail) {
+        char scancode = key_buffer[key_buffer_tail];
+        key_buffer_tail = (key_buffer_tail + 1) % KEY_BUFFER_SIZE;
+        return scancode;
+    }
+    return 0x00;
 }
 
 void set_keyboard_type(uint8_t type){

@@ -8,8 +8,17 @@ int get_cursor_offset();
 void set_cursor_offset(int offset);
 int print_char(char c, int col, int row, char attr);
 int get_offset(int col, int row);
-int get_offset_row(int offset);
-int get_offset_col(int offset);
+int get_vga_offset_row(int offset);
+int get_vga_offset_col(int offset);
+
+bool screen_auto_cursor = true;
+
+void set_auto_cursor(bool auto_cursor){
+    screen_auto_cursor=auto_cursor;
+}
+bool get_auto_cursor(){
+    return screen_auto_cursor;
+}
 
 /**********************************************************
  * Public Kernel API functions                            *
@@ -26,8 +35,8 @@ void kprint_at(char *message, int col, int row) {
         offset = get_offset(col, row);
     else {
         offset = get_cursor_offset();
-        row = get_offset_row(offset);
-        col = get_offset_col(offset);
+        row = get_vga_offset_row(offset);
+        col = get_vga_offset_col(offset);
     }
 
     /* Loop through message and print it */
@@ -35,8 +44,8 @@ void kprint_at(char *message, int col, int row) {
     while (message[i] != 0) {
         offset = print_char(message[i++], col, row, WHITE_ON_BLACK);
         /* Compute row/col for next iteration */
-        row = get_offset_row(offset);
-        col = get_offset_col(offset);
+        row = get_vga_offset_row(offset);
+        col = get_vga_offset_col(offset);
     }
 }
 
@@ -46,8 +55,8 @@ void kprint(char *message) {
 
 void kprint_backspace() {
     int offset = get_cursor_offset()-2;
-    int row = get_offset_row(offset);
-    int col = get_offset_col(offset);
+    int row = get_vga_offset_row(offset);
+    int col = get_vga_offset_col(offset);
     print_char(0x00, col, row, WHITE_ON_BLACK);
     set_cursor_offset(offset);
 }
@@ -82,7 +91,7 @@ int print_char(char c, int col, int row, char attr) {
     else offset = get_cursor_offset();
 
     if (c == '\n') {
-        row = get_offset_row(offset);
+        row = get_vga_offset_row(offset);
         offset = get_offset(0, row+1);
     } else {
         vidmem[offset] = c;
@@ -105,7 +114,9 @@ int print_char(char c, int col, int row, char attr) {
         offset -= 2 * MAX_COLS;
     }
 
-    set_cursor_offset(offset);
+    if(screen_auto_cursor){
+        set_cursor_offset(offset);
+    }
     return offset;
 }
 
@@ -144,5 +155,5 @@ void clear_screen() {
 
 
 int get_offset(int col, int row) { return 2 * (row * MAX_COLS + col); }
-int get_offset_row(int offset) { return offset / (2 * MAX_COLS); }
-int get_offset_col(int offset) { return (offset - (get_offset_row(offset)*2*MAX_COLS))/2; }
+int get_vga_offset_row(int offset) { return offset / (2 * MAX_COLS); }
+int get_vga_offset_col(int offset) { return (offset - (get_vga_offset_row(offset)*2*MAX_COLS))/2; }
