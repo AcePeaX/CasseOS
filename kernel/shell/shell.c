@@ -7,7 +7,7 @@
 #include "libc/string.h"
 
 uint8_t cursor=0;
-bool end_command = true;
+bool end_command = false;
 bool start = true;
 bool pop = true;
 
@@ -17,10 +17,16 @@ extern char key_buffer;
 
 void shell_main_loop(){
     if(start){
-        kprint("Welcome to CasseOS!");
+        kprint("Welcome to CasseOS!\n>");
+        flush_command_line();
+        init_command_line(get_cursor_offset()/2);
         start = false;
     }
     if(end_command){
+        kprint("\n");
+        kprint("Incorrect command: '");
+        kprint(command);
+        kprint("'");
         kprint("\n>");
         end_command = false;
         flush_command_line();
