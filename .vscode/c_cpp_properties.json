@@ -4,7 +4,11 @@
             "name": "Linux",
             "includePath": [
                 "${workspaceFolder}",    // Add root directory as include path
-                "${workspaceFolder}/**"  // Optional: Enable recursive includes
+                "${workspaceFolder}/**",  // Optional: Enable recursive includes
+                "/usr/include",              // Example: Add standard paths manually
+                "/usr/local/include",
+                "/usr/include/x86_64-linux-gnu",
+                "/usr/local/cross/lib/gcc/i386-elf/10.2.0/include" // Add standard library path here
             ],
             "defines": [],
             "compilerPath": "/usr/local/cross/bin/i386-elf-gcc", // Specify your compiler path
