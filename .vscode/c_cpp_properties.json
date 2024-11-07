@@ -1,0 +1,17 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}",    // Add root directory as include path
+                "${workspaceFolder}/**"  // Optional: Enable recursive includes
+            ],
+            "defines": [],
+            "compilerPath": "/usr/local/cross/bin/i386-elf-gcc", // Specify your compiler path
+            "cStandard": "c11",
+            "cppStandard": "c++11",
+            "intelliSenseMode": "linux-gcc-x64" // Adjust this if using a different environment
+        }
+    ],
+    "version": 4
+}

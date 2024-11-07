@@ -18,14 +18,14 @@ QEMU=qemu-system-i386
 BUILD_DIR := .build
 BIN_DIR := .bin
 
-C_SOURCES = $(wildcard kernel/*.c drivers/*.c cpu/*.c libc/*.c)
-HEADERS = $(wildcard kernel/*.h drivers/*.h cpu/*.o libc/*.o)
+C_SOURCES = $(shell find kernel drivers cpu libc -name '*.c')
+HEADERS = $(shell find kernel drivers cpu libc -name '*.o')
 # Nice syntax for file extension replacement
 OBJ := $(patsubst %.c, $(BUILD_DIR)/%.o, $(C_SOURCES) $(BUILD_DIR)/cpu/interrupt.o)
 
 #$(info OBJ files: $(OBJ))
 # -g: Use debugging symbols in gcc
-CFLAGS =  -g -ffreestanding -Wall -Wextra -fno-exceptions -m32
+CFLAGS =  -g -ffreestanding -Wall -Wextra -fno-exceptions -m32 -I.
 
 all: os-image
 
