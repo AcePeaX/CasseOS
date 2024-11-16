@@ -2,14 +2,16 @@
 # $< = first dependency
 # $^ = all dependencies
 
+GCC=x86_64-elf-gcc # Or /usr/local/cross/bin/x86_64-elf-gcc
+#GCC=i386-elf-gcc or /usr/local/cross/bin/i386-elf-gcc
+#GCC="i386-elf-gcc" or /usr/local/cross/bin/i686-elf-gcc
 
-GCC=i386-elf-gcc # Or /usr/local/cross/bin/i386-elf-gcc
-# GCC="i386-elf-gcc" or /usr/local/cross/bin/i686-elf-gcc
+LD=x86_64-elf-ld # Or /usr/local/cross/bin/x86_64-elf-ld
+#LD=i386-elf-ld or /usr/local/cross/bin/i386-elf-ld
+#LD=i686-elf-ld or /usr/local/cross/bin/i686-elf-ld
 
-LD=i386-elf-ld # Or /usr/local/cross/bin/i386-elf-ld
-#LD="i686-elf-ld" or /usr/local/cross/bin/i686-elf-ld
-
-GDB=i386-elf-gdb # Or /usr/local/cross/bin/i386-elf-gdb
+GDB=x86_64-elf-gdb # Or /usr/local/cross/bin/x86_64-elf-gdb
+#GDB=i386-elf-gdb or /usr/local/cross/bin/i386-elf-gdb
 #GDB="i686-elf-gdb" or /usr/local/cross/bin/i686-elf-gdb
 
 #QEMU=qemu-system-i386
@@ -21,14 +23,18 @@ BUILD_DIR := .build
 BIN_DIR := .bin
 
 
-C_SOURCES = $(shell find kernel drivers cpu libc -name '*.c')
-HEADERS = $(shell find kernel drivers cpu libc -name '*.h')
+#C_SOURCES = $(shell find kernel drivers cpu libc -name '*.c')
+C_SOURCES = $(shell find kernel -name '*.c')
+#HEADERS = $(shell find kernel drivers cpu libc -name '*.h')
+HEADERS = $(shell find kernel -name '*.h')
 # Nice syntax for file extension replacement
-OBJ := $(patsubst %.c, $(BUILD_DIR)/%.o, $(C_SOURCES) $(BUILD_DIR)/cpu/interrupt.o)
+#OBJ := $(patsubst %.c, $(BUILD_DIR)/%.o, $(C_SOURCES) $(BUILD_DIR)/cpu/interrupt.o)
+OBJ := $(patsubst %.c, $(BUILD_DIR)/%.o, $(C_SOURCES))
+
 
 #$(info OBJ files: $(OBJ))
 # -g: Use debugging symbols in gcc
-CFLAGS =  -g -ffreestanding -Wall -Wextra -fno-exceptions -m32 -I.
+CFLAGS =  -g -ffreestanding -Wall -Wextra -fno-exceptions -m64 -I.
 
 all: os-image
 
@@ -88,7 +94,7 @@ $(BUILD_DIR)/%.o: %.c ${HEADERS}
 
 $(BUILD_DIR)/%.o: %.asm
 	@./scripts/create_file_path.sh $@
-	nasm $< -f elf -i$(dir $<) -D ELF_FORMAT -o $@
+	nasm $< -f elf64 -i$(dir $<) -D ELF_FORMAT -o $@
 
 $(BIN_DIR)/%.bin: %.asm
 	nasm $< -f bin -o $@
