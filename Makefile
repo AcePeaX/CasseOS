@@ -12,8 +12,8 @@ LD=i386-elf-ld # Or /usr/local/cross/bin/i386-elf-ld
 GDB=i386-elf-gdb # Or /usr/local/cross/bin/i386-elf-gdb
 #GDB="i686-elf-gdb" or /usr/local/cross/bin/i686-elf-gdb
 
-QEMU=qemu-system-i386
-#QEMU=qemu-system-x86_64
+#QEMU=qemu-system-i386
+QEMU=qemu-system-x86_64
 
 KERNEL_START_MEM = 0x80000
 
@@ -73,6 +73,11 @@ num_sectors: $(BIN_DIR)/kernel.bin
 info:
 	@echo "C_SOURCES = $(C_SOURCES)"
 	@echo "OBJ = $(OBJ)"
+
+bootloader-elf: bootloader/*
+	nasm -f elf32 -g bootloader/bootloader.asm -i$(dir $<) -o $(BUILD_DIR)/bootloader.o  -D ELF_FORMAT
+	ld -m elf_i386 -Ttext 0x7C00 -o $(BIN_DIR)/bootloader-elf $(BUILD_DIR)/bootloader.o
+	objdump -d $(BIN_DIR)/bootloader-elf
 
 # Generic rules for wildcards
 # To make an object, always compile from its .c
