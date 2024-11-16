@@ -15,8 +15,11 @@ GDB=i386-elf-gdb # Or /usr/local/cross/bin/i386-elf-gdb
 QEMU=qemu-system-i386
 #QEMU=qemu-system-x86_64
 
+KERNEL_START_MEM = 0x80000
+
 BUILD_DIR := .build
 BIN_DIR := .bin
+
 
 C_SOURCES = $(shell find kernel drivers cpu libc -name '*.c')
 HEADERS = $(shell find kernel drivers cpu libc -name '*.h')
@@ -30,14 +33,14 @@ CFLAGS =  -g -ffreestanding -Wall -Wextra -fno-exceptions -m32 -I.
 all: os-image
 
 $(BIN_DIR)/kernel.bin: $(BUILD_DIR)/kernel/kernel_entry.o ${OBJ}
-	$(LD) -o $@ -Ttext 0x1000 $^ --oformat binary
+	$(LD) -o $@ -Ttext $(KERNEL_START_MEM) $^ --oformat binary
 
 $(BIN_DIR)/bootloader.bin: bootloader/*
 	@./scripts/create_file_path.sh $@
 	@nasm bootloader/bootloader.asm -f bin -i$(dir $<) -o $@
 
 $(BUILD_DIR)/kernel.elf: $(BUILD_DIR)/kernel/kernel_entry.o ${OBJ}
-	@$(LD) -o $@ -Ttext 0x1000 $^
+	@$(LD) -o $@ -Ttext $(KERNEL_START_MEM) $^
 
 kernel.bin: $(BIN_DIR)/kernel.bin
 bootloader.bin: $(BIN_DIR)/bootloader.bin
