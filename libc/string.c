@@ -17,6 +17,35 @@ void int_to_ascii(int n, char str[]) {
     reverse(str);
 }
 
+void hex_to_string(uint64_t value, char* buffer) {
+    const char* hex_digits = "0123456789ABCDEF";
+    int i;
+    for (i = 15; i >= 0; --i) {
+        buffer[i] = hex_digits[value & 0xF];
+        value >>= 4; // Shift the value 4 bits to the right
+    }
+    buffer[16] = '\0'; // Null-terminate the string
+}
+
+void hex_to_string_trimmed(uint64_t value, char* buffer) {
+    const char* hex_digits = "0123456789ABCDEF";
+    int i = 15; // Start from the least significant digit
+    int start = 0;
+
+    // Fill digits in reverse
+    while (value > 0 || i == 15) { // Always output at least one zero
+        buffer[i--] = hex_digits[value & 0xF];
+        value >>= 4;
+    }
+
+    // Move the digits to the beginning of the buffer
+    for (start = 0, ++i; i < 16; ++i, ++start) {
+        buffer[start] = buffer[i];
+    }
+    buffer[start] = '\0';
+}
+
+
 /* K&R */
 void reverse(char s[]) {
     int c, i, j;
@@ -54,3 +83,4 @@ int strcmp(char s1[], char s2[]) {
     }
     return s1[i] - s2[i];
 }
+

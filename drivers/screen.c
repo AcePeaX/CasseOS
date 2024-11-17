@@ -1,7 +1,7 @@
 #include "screen.h"
-#include "../cpu/ports.h"
-#include "../libc/string.h"
-#include "../libc/mem.h"
+#include "cpu/ports.h"
+#include "libc/string.h"
+#include "libc/mem.h"
 
 /* Declaration of private functions */
 int get_cursor_offset();

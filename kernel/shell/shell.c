@@ -5,6 +5,7 @@
 #include "drivers/keyboard.h"
 #include "cpu/type.h"
 #include "libc/string.h"
+#include "drivers/pci.h"
 
 uint8_t cursor=0;
 bool end_command = false;
@@ -17,17 +18,24 @@ extern char key_buffer;
 
 void shell_main_loop(){
     if(start){
-        kprint("Welcome to CasseOS Sell!\n>");
+        kprint("Welcome to CasseOS Shell!\n>");
         flush_command_line();
         init_command_line(get_cursor_offset()/2);
         start = false;
     }
     if(end_command){
         kprint("\n");
-        kprint("Incorrect command: '");
-        kprint(command);
-        kprint("'");
-        kprint("\n>");
+
+        if(strcmp(command, "usb_scan")==0){
+            kprint("Executing the scan...\n");
+            pci_scan_for_usb_controllers();
+        }
+        else{
+            kprint("Incorrect command: '");
+            kprint(command);
+            kprint("'\n");
+        }
+        kprint(">");
         end_command = false;
         flush_command_line();
         init_command_line(get_cursor_offset()/2);
