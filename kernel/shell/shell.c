@@ -17,7 +17,7 @@ extern char key_buffer;
 
 void shell_main_loop(){
     if(start){
-        kprint("Welcome to CasseOS!\n>");
+        kprint("Welcome to CasseOS Sell!\n>");
         flush_command_line();
         init_command_line(get_cursor_offset()/2);
         start = false;

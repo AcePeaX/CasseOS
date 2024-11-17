@@ -1,7 +1,8 @@
 #include "timer.h"
 #include "isr.h"
 #include "ports.h"
-#include "../libc/function.h"
+#include "drivers/screen.h"
+#include "libc/function.h"
 
 uint32_t tick = 0;
 
@@ -22,5 +23,6 @@ void init_timer(uint32_t freq) {
     port_byte_out(0x43, 0x36); /* Command port */
     port_byte_out(0x40, low);
     port_byte_out(0x40, high);
+
 }
 

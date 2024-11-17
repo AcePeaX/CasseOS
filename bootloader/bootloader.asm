@@ -6,7 +6,9 @@
 %ifndef NUM_SECTORS
 %define NUM_SECTORS 22
 %endif
-KERNEL_OFFSET equ 0x1000 ; The same one we used when linking the kernel
+KERNEL_OFFSET equ 0x0000 ; The same one we used when linking the kernel
+KERNEL_SEGMENT equ 0x8000 ; The same one we used when linking the kernel
+KERNEL_FULL_MEM equ 0x80000 ; The same one we used when linking the kernel
 
     mov [BOOT_DRIVE], dl ; Remember that the BIOS sets us the boot drive in 'dl' on boot
     mov bp, 0x9000 ; set the stack
@@ -33,7 +35,9 @@ load_kernel:
     call print
     call print_nl
 
-    mov bx, KERNEL_OFFSET ; Read from disk and store in 0x1000
+    mov bx, KERNEL_OFFSET ; Read from disk and store in ....
+    mov ax, KERNEL_SEGMENT
+    mov es, ax            ; 16*KERNEL_SEGMENT+KERNEL_OFFSET
     mov dh, NUM_SECTORS   ; Number of sectors to read
     mov dl, [BOOT_DRIVE]
     call disk_load
@@ -43,7 +47,7 @@ load_kernel:
 BEGIN_PM: ; after the switch we will get here
     mov ebx, MSG_PROT_MODE
     call print_string_pm ; Note that this will be written at the top left corner
-    call KERNEL_OFFSET ; Give control to the kernel
+    call KERNEL_FULL_MEM ; Give control to the kernel
     jmp $
 
 

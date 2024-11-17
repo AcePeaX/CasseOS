@@ -79,10 +79,16 @@ extern void irq15();
  * - `push eax` whose lower 16-bits contain DS
  */
 typedef struct {
-   uint32_t ds; /* Data segment selector */
-   uint32_t edi, esi, ebp, useless, ebx, edx, ecx, eax; /* Pushed by pusha. */
-   uint32_t int_no, err_code; /* Interrupt number and error code (if applicable) */
-   uint32_t eip, cs, eflags, esp, ss; /* Pushed by the processor automatically */
+   /* Pushed by PUSH_ALL macro */
+   uint64_t r15, r14, r13, r12, r11, r10, r9, r8;
+   uint64_t rbp, rdi, rsi, rdx, rcx, rbx, rax;
+
+   /* Interrupt number and error code */
+   uint64_t int_no;
+   uint64_t err_code;
+
+   /* Pushed automatically by the CPU */
+   uint64_t rip, cs, eflags, rsp, ss;
 } registers_t;
 
 void isr_install();
