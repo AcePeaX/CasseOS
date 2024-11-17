@@ -28,8 +28,8 @@ C_SOURCES = $(shell find kernel drivers cpu libc -name '*.c')
 HEADERS = $(shell find kernel drivers cpu libc -name '*.h')
 #HEADERS = $(shell find kernel cpu drivers -name '*.h')
 # Nice syntax for file extension replacement
-#OBJ := $(patsubst %.c, $(BUILD_DIR)/%.o, $(C_SOURCES) $(BUILD_DIR)/cpu/interrupt.o)
-OBJ := $(patsubst %.c, $(BUILD_DIR)/%.o, $(C_SOURCES))
+OBJ := $(patsubst %.c, $(BUILD_DIR)/%.o, $(C_SOURCES) $(BUILD_DIR)/cpu/interrupt.o)
+#OBJ := $(patsubst %.c, $(BUILD_DIR)/%.o, $(C_SOURCES))
 
 
 #$(info OBJ files: $(OBJ))
