@@ -1,6 +1,6 @@
-/*#include "../drivers/screen.h"
+#include "../drivers/screen.h"
 #include "../libc/string.h"
-#include "../libc/system.h"
+/*#include "../libc/system.h"
 #include "../cpu/isr.h"
 #include "../cpu/idt.h"
 #include "../cpu/timer.h"
@@ -8,6 +8,8 @@
 #include "shell/shell.h"*/
 
 void kernel_main() {
+    clear_screen();
+    kprint("Welcome to CasseOS:\n> ");
     while(1){
         
     }

@@ -23,10 +23,10 @@ BUILD_DIR := .build
 BIN_DIR := .bin
 
 
-#C_SOURCES = $(shell find kernel drivers cpu libc -name '*.c')
-C_SOURCES = $(shell find kernel -name '*.c')
-#HEADERS = $(shell find kernel drivers cpu libc -name '*.h')
-HEADERS = $(shell find kernel -name '*.h')
+C_SOURCES = $(shell find kernel drivers cpu libc -name '*.c')
+#C_SOURCES = $(shell find kernel cpu libc -name '*.c')
+HEADERS = $(shell find kernel drivers cpu libc -name '*.h')
+#HEADERS = $(shell find kernel cpu drivers -name '*.h')
 # Nice syntax for file extension replacement
 #OBJ := $(patsubst %.c, $(BUILD_DIR)/%.o, $(C_SOURCES) $(BUILD_DIR)/cpu/interrupt.o)
 OBJ := $(patsubst %.c, $(BUILD_DIR)/%.o, $(C_SOURCES))
@@ -34,19 +34,20 @@ OBJ := $(patsubst %.c, $(BUILD_DIR)/%.o, $(C_SOURCES))
 
 #$(info OBJ files: $(OBJ))
 # -g: Use debugging symbols in gcc
-CFLAGS =  -g -ffreestanding -Wall -Wextra -fno-exceptions -m64 -I.
+CFLAGS = -g -ffreestanding -Wall -Wextra -fno-exceptions -m64 -I. -O2
+LDFLAGS = -T linker.ld
 
 all: os-image
 
 $(BIN_DIR)/kernel.bin: $(BUILD_DIR)/kernel/kernel_entry.o ${OBJ}
-	$(LD) -o $@ -Ttext $(KERNEL_START_MEM) $^ --oformat binary
+	$(LD) $(LDFLAGS) -o $@ -Ttext $(KERNEL_START_MEM) $^ --oformat binary
 
 $(BIN_DIR)/bootloader.bin: bootloader/*
 	@./scripts/create_file_path.sh $@
 	@nasm bootloader/bootloader.asm -f bin -i$(dir $<) -o $@
 
 $(BUILD_DIR)/kernel.elf: $(BUILD_DIR)/kernel/kernel_entry.o ${OBJ}
-	@$(LD) -o $@ -Ttext $(KERNEL_START_MEM) $^
+	@$(LD) $(LDFLAGS) -o $@ -Ttext $(KERNEL_START_MEM) $^
 
 kernel.bin: $(BIN_DIR)/kernel.bin
 bootloader.bin: $(BIN_DIR)/bootloader.bin
@@ -66,7 +67,7 @@ qemu: $(BIN_DIR)/os-image.bin
 
 run: qemu
 
-debug: $(BIN_DIR)/os-image.bin $(BUILD_DIR)/kernel.elf
+debug: $(BUILD_DIR)/kernel.elf $(BIN_DIR)/os-image.bin
 	$(QEMU) -fda $(BIN_DIR)/os-image.bin -monitor stdio -display sdl -s &
 	${GDB} -ex "target remote localhost:1234" -ex "symbol-file .build/kernel.elf"
 
