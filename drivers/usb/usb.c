@@ -3,6 +3,7 @@
 #include "libc/string.h"
 #include "cpu/ports.h"
 #include "uhci.h"
+#include <stddef.h>
 
 
 usb_controller_t usb_controllers[16] = {}; // Support up to 16 controllers
@@ -52,19 +53,25 @@ void usb_enumerate_devices() {
     for (int i = 0; i < usb_controller_count; i++) {
         usb_controller_t *controller = &usb_controllers[i];
 
+        if(controller->pci_device==NULL){
+            continue;
+        }
+
         
         if(controller->pci_device->prog_if==0x00){
             printf("The current controller is of type: UHCI\n");
             uhci_initialize_controller(controller);
+            uhci_enumerate_devices(controller);
         } else if(controller->pci_device->prog_if==0x10){
-            printf("The current controller is of type: OHCI\n");
+            printf("USB driver for OHCI not yet available.\n");
         } else if(controller->pci_device->prog_if==0x20){
-            printf("The current controller is of type: EHCI\n");
+            printf("USB driver for EHCI not yet available.\n");
         } else if(controller->pci_device->prog_if==0x30){
-            printf("The current controller is of type: xHCI\n");
+            printf("USB driver for xHCI not yet available.\n");
         }
-
-        printf("Enumerating devices on USB controller %d\n", i);
+        else{
+            printf("USB controller %d not recognized.\n", i);
+        }
 
     }
 }
