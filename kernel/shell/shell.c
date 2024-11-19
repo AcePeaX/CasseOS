@@ -5,7 +5,7 @@
 #include "drivers/keyboard.h"
 #include "cpu/type.h"
 #include "libc/string.h"
-#include "drivers/pci.h"
+#include "drivers/usb/usb.h"
 
 uint8_t cursor=0;
 bool end_command = false;
@@ -18,6 +18,8 @@ extern char key_buffer;
 
 void shell_main_loop(){
     if(start){
+        pci_scan_for_usb_controllers();
+        usb_enumerate_devices();
         kprint("Welcome to CasseOS Shell!\n>");
         flush_command_line();
         init_command_line(get_cursor_offset()/2);

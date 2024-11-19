@@ -4,7 +4,7 @@
 
 ; Default to 1 sector if NUM_SECTORS is not defined
 %ifndef NUM_SECTORS
-%define NUM_SECTORS 22
+%define NUM_SECTORS 25
 %endif
 KERNEL_OFFSET equ 0x0000 ; The same one we used when linking the kernel
 KERNEL_SEGMENT equ 0x8000 ; The same one we used when linking the kernel

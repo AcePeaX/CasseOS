@@ -6,11 +6,13 @@
 #include "../cpu/timer.h"
 #include "../drivers/keyboard.h"
 #include "shell/shell.h"
+#include "drivers/pci.h"
 
 void kernel_main() {
     isr_install();
     irq_install();
     clear_screen();
+    pci_scan();
 
     
     while(true){
