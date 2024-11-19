@@ -1,7 +1,9 @@
+#include <stdarg.h>
 #include "screen.h"
 #include "cpu/ports.h"
 #include "libc/string.h"
 #include "libc/mem.h"
+
 
 /* Declaration of private functions */
 int get_cursor_offset();
@@ -157,3 +159,69 @@ void clear_screen() {
 int get_offset(int col, int row) { return 2 * (row * MAX_COLS + col); }
 int get_vga_offset_row(int offset) { return offset / (2 * MAX_COLS); }
 int get_vga_offset_col(int offset) { return (offset - (get_vga_offset_row(offset)*2*MAX_COLS))/2; }
+
+
+
+void printf(const char *format, ...) {
+    va_list args; // List of variable arguments
+    va_start(args, format); // Initialize the list with the format string
+
+    char buffer[256]; // Temporary buffer for formatted output
+    int buffer_index = 0;
+
+    for (int i = 0; format[i] != '\0'; i++) {
+        if (format[i] == '%' && format[i + 1] != '\0') {
+            i++; // Move to the specifier
+            switch (format[i]) {
+                case 'd': { // Integer
+                    int value = va_arg(args, int);
+                    char int_buffer[16];
+                    int_to_ascii(value, int_buffer);
+                    for (int j = 0; int_buffer[j] != '\0'; j++) {
+                        buffer[buffer_index++] = int_buffer[j];
+                    }
+                    break;
+                }
+                case 'x': { // Hexadecimal
+                    uint64_t value = va_arg(args, uint64_t);
+                    char hex_buffer[17];
+                    hex_to_string_trimmed(value, hex_buffer);
+                    for (int j = 0; hex_buffer[j] != '\0'; j++) {
+                        buffer[buffer_index++] = hex_buffer[j];
+                    }
+                    break;
+                }
+                case 's': { // String
+                    char *str = va_arg(args, char *);
+                    for (int j = 0; str[j] != '\0'; j++) {
+                        buffer[buffer_index++] = str[j];
+                    }
+                    break;
+                }
+                case 'c': { // Character
+                    char value = (char)va_arg(args, int);
+                    buffer[buffer_index++] = value;
+                    break;
+                }
+                case '%': { // Literal '%'
+                    buffer[buffer_index++] = '%';
+                    break;
+                }
+                default: { // Unsupported specifier
+                    buffer[buffer_index++] = '%';
+                    buffer[buffer_index++] = format[i];
+                    break;
+                }
+            }
+        } else {
+            // Regular character
+            buffer[buffer_index++] = format[i];
+        }
+    }
+
+    buffer[buffer_index] = '\0'; // Null-terminate the string
+    va_end(args); // Clean up
+
+    kprint(buffer); // Print the formatted string
+}
+

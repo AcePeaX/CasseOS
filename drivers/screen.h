@@ -25,4 +25,6 @@ void set_cursor_offset(int offset);
 int get_vga_offset_row(int offset);
 int get_vga_offset_col(int offset);
 
+void printf(const char *format, ...);
+
 #endif
