@@ -94,4 +94,12 @@ typedef struct {
 extern usb_device_t usb_devices[MAX_USB_DEVICES];
 extern uint8_t usb_device_count;
 
+typedef struct {
+    uint8_t bmRequestType;
+    uint8_t bRequest;
+    uint16_t wValue;
+    uint16_t wIndex;
+    uint16_t wLength;
+} __attribute__((packed)) usb_setup_packet_t;
+
 #endif

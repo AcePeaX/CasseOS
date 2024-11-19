@@ -26,6 +26,11 @@ uint16_t pci_config_read_word(uint8_t bus, uint8_t device, uint8_t function, uin
     uint32_t data = io_dword_in(PCI_CONFIG_DATA);
     return (uint16_t)((data >> ((offset & 2) * 8)) & 0xFFFF);
 }
+void pci_enable_bus_mastering(pci_device_t *dev) {
+    uint16_t command = pci_config_read_word(dev->bus, dev->device, dev->function, 0x04);
+    command |= (1 << 2); // Set the Bus Master Enable bit
+    pci_config_write_word(dev->bus, dev->device, dev->function, 0x04, command);
+}
 
 void pci_config_write_word(uint8_t bus, uint8_t device, uint8_t function, uint8_t offset, uint16_t value) {
     uint32_t address = (1 << 31) |
