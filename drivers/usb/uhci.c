@@ -189,7 +189,7 @@ void free_setup_packet(usb_setup_packet_t* setup_packet) {
     aligned_free(setup_packet);
 }
 
-void uhci_wait_for_transfer_complete(uhci_td_t* td) {
+int uhci_wait_for_transfer_complete(uhci_td_t* td) {
     int timeout = 3000; // Timeout in milliseconds
     while ((td->control_status & 0x800000) && timeout > 0) {
         sleep_ms(1); // Wait for 1 millisecond
@@ -197,31 +197,38 @@ void uhci_wait_for_transfer_complete(uhci_td_t* td) {
     }
     if (timeout == 0) {
         printf("Transfer timeout\n");
-        return; // Indicate failure
+        return -1; // Indicate failure
     }
     if (td->control_status & (1 << 22)) {
         printf("Transfer stalled\n");
+        return -2; // Indicate failure
     }
     if (td->control_status & (1 << 21)) {
         printf("Data Buffer Error\n");
+        return -3; // Indicate failure
     }
     if (td->control_status & (1 << 20)) {
         printf("Babble Detected\n");
+        return -4; // Indicate failure
     }
     if (td->control_status & (1 << 19)) {
         printf("NAK Received\n");
+        return -5; // Indicate failure
     }
     if (td->control_status & (1 << 18)) {
         printf("CRC/Timeout Error\n");
+        return -6; // Indicate failure
     }
     if (td->control_status & (1 << 17)) {
         printf("Bit Stuff Error\n");
+        return -7; // Indicate failure
     }
+    return 1;
 }
 
 int uhci_set_device_address(uint16_t io_base, uint8_t port, uint8_t new_address) {
     
-    // In your uhci_set_device_address function
+    // Create the setup packet for SET_ADDRESS
     usb_setup_packet_t* setup_packet = allocate_setup_packet();
     if (setup_packet == NULL) {
         return 0;
@@ -250,7 +257,7 @@ int uhci_set_device_address(uint16_t io_base, uint8_t port, uint8_t new_address)
     // Initialize Setup TD
     setup_td->link_pointer = get_physical_address(status_td) | 0x04; // T-bit 0
     setup_td->control_status = 0x800000; // Active
-    setup_td->token = (0x2D) | (0 << 8) | (0 << 15) | (8 << 16); // PID_SETUP, Device Address 0, Endpoint 0, Data Length 8
+    setup_td->token = (0x2D) | (0 << 8) | (0 << 15) | (7 << 21); // PID_SETUP, Device Address 0, Endpoint 0, Data Length 8
     setup_td->buffer_pointer = get_physical_address(setup_packet);
 
     // Initialize Status TD
@@ -268,24 +275,11 @@ int uhci_set_device_address(uint16_t io_base, uint8_t port, uint8_t new_address)
     qh->horizontal_link_pointer = 0x00000001; // Terminate
     qh->vertical_link_pointer = get_physical_address(setup_td);
 
-    printf("setup_packet: 0x%x\n", setup_packet);
-    printf("QH: Horizontal Pointer: 0x%x, Vertical Pointer: 0x%x\n",qh->horizontal_link_pointer,qh->vertical_link_pointer);
-    printf("Setup TD: Self Address: 0x%x, Link Pointer: 0x%x, Control Status: 0x%x, Token: 0x%x, Buffer: 0x%x\n",
-        setup_td, setup_td->link_pointer, setup_td->control_status,
-        setup_td->token, setup_td->buffer_pointer);
-    printf("Status TD: Self Address: 0x%x, Link Pointer: 0x%x, Control Status: 0x%x, Token: 0x%x, Buffer: 0x%x\n",
-        status_td, status_td->link_pointer, status_td->control_status,
-        status_td->token, status_td->buffer_pointer);
-
-    
     uint16_t current_frame = port_word_in(io_base + 0x6);
-    
 
     // For example, read the Frame Number Register to synchronize
-    uint16_t frame_number = current_frame+2;//port_word_in(io_base + 0x06) & 0x7FF; // 11 bits
+    uint16_t frame_number = current_frame+1;//port_word_in(io_base + 0x06) & 0x7FF; // 11 bits
     frame_list[(frame_number) % 1024] = get_physical_address(qh) | 0x00000002;
-
-
 
     uint16_t command = port_word_in(io_base + 0x00);
     if (!(command & 0x01)) {
@@ -293,14 +287,10 @@ int uhci_set_device_address(uint16_t io_base, uint8_t port, uint8_t new_address)
         return 0;
     }
 
-
-
-    //sleep_ms(1000); // Wait for 1 millisecond
-
-
-
     // Wait for transfer completion
-    uhci_wait_for_transfer_complete(setup_td);
+    if(uhci_wait_for_transfer_complete(setup_td)!=1){
+        return 0;
+    }
 
     uint16_t status = port_word_in(io_base + 0x02);
     if (status & 0x02) {
@@ -308,7 +298,6 @@ int uhci_set_device_address(uint16_t io_base, uint8_t port, uint8_t new_address)
         // Clear the USBERRINT bit
         port_word_out(io_base + 0x02, 0x02);
     }
-
 
     // Check if the transfer was successful
     if (setup_td->control_status & 0x400000) {
