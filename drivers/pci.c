@@ -82,10 +82,12 @@ void pci_read_bars(pci_device_t *dev) {
         if (bar_value & 0x1) {
             // Port-mapped I/O
             dev->is_memory_mapped[bar_index] = 0;
+            //printf("Bar %d: Device is port-mapped I/O at this address: 0x%x\n", bar_index, bar_value & 0xFFFFFFFC);
             dev->bar[bar_index] = bar_value & 0xFFFFFFFC;
         } else {
             // Memory-mapped I/O
             dev->is_memory_mapped[bar_index] = 1;
+            //printf("Bar %d: Device is memory-mapped at this address: 0x%x\n", bar_index, bar_value & 0xFFFFFFF0);
             dev->bar[bar_index] = bar_value & 0xFFFFFFF0;
 
             // Check if it's a 64-bit BAR

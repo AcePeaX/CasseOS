@@ -14,7 +14,6 @@ typedef struct {
 extern usb_controller_t usb_controllers[16]; // Support up to 16 controllers
 extern uint8_t usb_controller_count;
 
-void uhci_initialize_controller(usb_controller_t *controller);
 void pci_scan_for_usb_controllers();
 void usb_enumerate_devices();
 //void usb_init();

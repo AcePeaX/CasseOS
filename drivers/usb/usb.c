@@ -17,11 +17,17 @@ void pci_scan_for_usb_controllers() {
     for(pci_device_t* dev = pci_devices; dev<pci_devices+pci_device_count; dev++){
         if (dev->vendor_id != 0xFFFF) { // 0xFFFF indicates no device
             if (dev->class_code == 0x0C && dev->subclass == 0x03) { // USB controller
-                usb_controllers[usb_controller_count].pci_device = dev;
-                usb_controllers[usb_controller_count].base_address = dev->bar[0];
-                        
                 // Read BARs for this device
-                pci_read_bars(dev);
+                //pci_read_bars(dev);   // Already done in PCI scan
+
+                if(dev->prog_if==0x00){
+                    usb_controllers[usb_controller_count].base_address = find_uhci_io_base(dev);
+                }
+                else{
+                    usb_controllers[usb_controller_count].base_address = dev->bar[0];
+                }
+
+                usb_controllers[usb_controller_count].pci_device = dev;
 
 
                 /*for (int bar_index = 0; bar_index < 6; bar_index++) {

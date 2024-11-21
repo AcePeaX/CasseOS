@@ -34,9 +34,9 @@ OBJ := $(patsubst %.c, $(BUILD_DIR)/%.o, $(C_SOURCES) $(BUILD_DIR)/cpu/interrupt
 
 #$(info OBJ files: $(OBJ))
 # -g: Use debugging symbols in gcc
-CFLAGS = -g -ffreestanding -Wall -Wextra -fno-exceptions -m64 -I. -O2
+CFLAGS = -g -ffreestanding -Wall -Wextra -fno-exceptions -m64 -I. -O1
 LDFLAGS = -T linker.ld
-QEMUFLAGS = -usb -device usb-kbd
+QEMUFLAGS =  -monitor stdio -display sdl -usb -device usb-kbd #-trace usb_uhci* 
 
 all: os-image
 
@@ -64,12 +64,12 @@ os-image.bin: $(BIN_DIR)/os-image.bin
 os-image: os-image.bin
 
 qemu: $(BIN_DIR)/os-image.bin
-	@$(QEMU) $(QEMUFLAGS) -fda $(BIN_DIR)/os-image.bin -monitor stdio -display sdl
+	@$(QEMU) $(QEMUFLAGS) -fda $(BIN_DIR)/os-image.bin
 
 run: qemu -device usb-tablet
 
 debug: $(BUILD_DIR)/kernel.elf $(BIN_DIR)/os-image.bin
-	$(QEMU) $(QEMUFLAGS) -fda $(BIN_DIR)/os-image.bin -monitor stdio -display sdl -s -S &
+	$(QEMU) $(QEMUFLAGS) -fda $(BIN_DIR)/os-image.bin -s -S &
 	${GDB} -ex "target remote localhost:1234" -ex "symbol-file .build/kernel.elf"
 
 virtualbox: $(BIN_DIR)/os-image.bin

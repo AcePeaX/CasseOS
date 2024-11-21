@@ -7,20 +7,51 @@
 #include "uhci.h"
 #include "../pci.h"
 
-void uhci_reset_controller(uint16_t io_base) {
+uint32_t find_uhci_io_base(pci_device_t* device) {
+    for (int i = 0; i < 6; i++) { // Check all 6 BARs
+        uint32_t bar = device->bar[i];
+        if (bar!=0 && !device->is_memory_mapped[i]) { // Check if it's an I/O space
+            return (uint16_t)(bar & 0xFFFFFFFC); // Return the base address
+        }
+    }
+    return 0; // No valid BAR found
+}
+
+bool uhci_reset_controller(uint16_t io_base) {
+
     // Set Global Reset bit (bit 2) in the Command Register (offset 0x00)
     port_word_out(io_base + 0x00, 0x0002);
     // Wait for at least 10 microseconds
-    for (volatile int i = 0; i < 1000; i++);
+    sleep_ms(10);
     // Clear the Global Reset bit
     port_word_out(io_base + 0x00, 0x0000);
+
+
+    // Check USB Status Register
+    uint16_t status = port_word_in(io_base + 0x02);
+    if (status & (1 << 5)) {
+        //printf("Controller successfully halted.\n");
+        return true;
+    } else {
+        printf("Controller is NOT halted. Status: 0x%x\n", status);
+        return false;
+    }
 }
 
 uint32_t frame_list[1024] __attribute__((aligned(4096)));
 
-void uhci_set_frame_list_base_address(uint16_t io_base, uint32_t frame_list_phys_addr) {
+bool uhci_set_frame_list_base_address(uint16_t io_base, uint32_t frame_list_phys_addr) {
     // Write to the Frame List Base Address Register (offset 0x08)
     port_dword_out(io_base + 0x08, frame_list_phys_addr);
+    uint32_t frame_list_address = port_dword_in(io_base + 0x08); // Read Frame List Base Address Register
+    if (frame_list_address == (uintptr_t)frame_list_phys_addr) {
+        //printf("Frame List successfully set: 0x%x and 0x%x\n", frame_list_address, frame_list_phys_addr);
+        return true;
+    } else {
+        printf("Frame List set failed. Expected: 0x%x, Got: 0x%x\n",
+                (uintptr_t)frame_list_phys_addr, frame_list_address);
+    }
+    return false;
 }
 
 void uhci_initialize_frame_list() {
@@ -29,33 +60,57 @@ void uhci_initialize_frame_list() {
     }
 }
 
-void uhci_start_controller(uint16_t io_base) {
+bool uhci_start_controller(uint16_t io_base) {
     // Set Run/Stop bit (bit 0) in the Command Register
     port_word_out(io_base + 0x00, 0x0001);
+    uint16_t status = port_word_in(io_base + 0x02); // Read Status Register
+    if(status!=0){
+        printf("The controller was not correctly started!");
+        return false;
+    }
+    return true;
 }
 
-void uhci_enable_interrupts(uint16_t io_base) {
+bool uhci_enable_interrupts(uint16_t io_base) {
     // Write to the Interrupt Enable Register (offset 0x04)
     // Enable Host System Error Interrupt, Resume Interrupt, Interrupt on Completion
-    port_word_out(io_base + 0x04, 0x0007);
+    port_word_out(io_base + 0x04, 0x0006);
+    uint32_t intr = port_word_in(io_base + 0x04);
+    if(intr != 0x06){
+        return false;
+    }
+    return true;
 }
 
-void uhci_initialize_controller(usb_controller_t *controller) {
+bool uhci_initialize_controller(usb_controller_t *controller) {
     uint16_t io_base = (uint16_t)controller->base_address;
 
     pci_enable_bus_mastering(controller->pci_device);
 
-    uhci_reset_controller(io_base);
+
+    if(!uhci_reset_controller(io_base)){
+        return false;
+    }
 
     uhci_initialize_frame_list();
 
     // Assuming frame_list is identity-mapped; if not, you need to get the physical address
     uintptr_t frame_list_phys_addr = (uintptr_t) &frame_list;
-    uhci_set_frame_list_base_address(io_base, frame_list_phys_addr);
+    if(!uhci_set_frame_list_base_address(io_base, frame_list_phys_addr)){
+        return false;
+    }
 
-    uhci_start_controller(io_base);
+    if(!uhci_enable_interrupts(io_base)){
+        return false;
+    }
+
+    if(!uhci_start_controller(io_base)){
+        return false;
+    }
 
     printf("UHCI Controller initialized at IO base 0x%x\n", io_base);
+
+    return true;
 }
 
 void uhci_reset_port(uint16_t io_base, int port) {
@@ -65,7 +120,7 @@ void uhci_reset_port(uint16_t io_base, int port) {
     // Wait for 50ms
     sleep_ms(50);
     // Clear the reset bit
-    port_word_out(port_addr, 0x0000);
+    port_word_out(port_addr, port_word_in(port_addr) & ~PORT_RESET);
     // Wait for the port to recover
     sleep_ms(50);
 
@@ -112,47 +167,80 @@ uhci_qh_t* allocate_qh() {
     return qh;
 }
 
+usb_setup_packet_t* allocate_setup_packet() {
+    usb_setup_packet_t* packet = (usb_setup_packet_t*)aligned_alloc(16, sizeof(usb_setup_packet_t));
+    if (packet == NULL) {
+        printf("Failed to allocate Setup Packet\n");
+        return NULL;
+    }
+    memory_set(packet, 0, sizeof(usb_setup_packet_t));
+    return packet;
+}
+
 void free_td(uhci_td_t* td) {
-    aligned_free(td); // Replace with your allocator's free function
+    aligned_free(td);
 }
 
 void free_qh(uhci_qh_t* qh) {
-    aligned_free(qh); // Replace with your allocator's free function
+    aligned_free(qh);
+}
+
+void free_setup_packet(usb_setup_packet_t* setup_packet) {
+    aligned_free(setup_packet);
 }
 
 void uhci_wait_for_transfer_complete(uhci_td_t* td) {
     int timeout = 3000; // Timeout in milliseconds
-    while ((td->control_status & 0x80) && timeout > 0) {
+    while ((td->control_status & 0x800000) && timeout > 0) {
         sleep_ms(1); // Wait for 1 millisecond
         timeout--;
     }
     if (timeout == 0) {
         printf("Transfer timeout\n");
-        return -1; // Indicate failure
+        return; // Indicate failure
     }
-    // Check for errors
-    if (td->control_status & 0x40) { // Stalled
+    if (td->control_status & (1 << 22)) {
         printf("Transfer stalled\n");
+    }
+    if (td->control_status & (1 << 21)) {
+        printf("Data Buffer Error\n");
+    }
+    if (td->control_status & (1 << 20)) {
+        printf("Babble Detected\n");
+    }
+    if (td->control_status & (1 << 19)) {
+        printf("NAK Received\n");
+    }
+    if (td->control_status & (1 << 18)) {
+        printf("CRC/Timeout Error\n");
+    }
+    if (td->control_status & (1 << 17)) {
+        printf("Bit Stuff Error\n");
     }
 }
 
 int uhci_set_device_address(uint16_t io_base, uint8_t port, uint8_t new_address) {
-    // Create the setup packet for SET_ADDRESS
-    usb_setup_packet_t setup_packet = {
-        .bmRequestType = 0x00, // Host to Device, Standard, Device
-        .bRequest = 0x05,      // SET_ADDRESS
-        .wValue = new_address,
-        .wIndex = 0,
-        .wLength = 0
-    };
     
-    UNUSED(io_base);
+    // In your uhci_set_device_address function
+    usb_setup_packet_t* setup_packet = allocate_setup_packet();
+    if (setup_packet == NULL) {
+        return 0;
+    }
+
+    // Initialize the setup packet
+    setup_packet->bmRequestType = 0x00; // Host to Device, Standard, Device
+    setup_packet->bRequest = 0x05;      // SET_ADDRESS
+    setup_packet->wValue = new_address;
+    setup_packet->wIndex = 0;
+    setup_packet->wLength = 0;
+    
     UNUSED(port);
 
     // Allocate TDs and QH
     uhci_td_t* setup_td = allocate_td();
     uhci_td_t* status_td = allocate_td();
     uhci_qh_t* qh = allocate_qh();
+
 
     if (!setup_td || !status_td || !qh) {
         printf("Error allocating TDs/QH\n");
@@ -161,35 +249,77 @@ int uhci_set_device_address(uint16_t io_base, uint8_t port, uint8_t new_address)
 
     // Initialize Setup TD
     setup_td->link_pointer = get_physical_address(status_td) | 0x04; // T-bit 0
-    setup_td->control_status = 0x80; // Active
+    setup_td->control_status = 0x800000; // Active
     setup_td->token = (0x2D) | (0 << 8) | (0 << 15) | (8 << 16); // PID_SETUP, Device Address 0, Endpoint 0, Data Length 8
-    setup_td->buffer_pointer = get_physical_address(&setup_packet);
+    setup_td->buffer_pointer = get_physical_address(setup_packet);
 
     // Initialize Status TD
     status_td->link_pointer = 0x00000001; // Terminate
-    status_td->control_status = 0x80;     // Active
+    status_td->control_status = 0x800000;     // Active
     status_td->token = (0x69) | (0 << 8) | (0 << 15) | (0 << 16); // PID_IN, Device Address 0, Endpoint 0, Data Length 0
     status_td->buffer_pointer = 0;
 
+
+
+    //printf("setup_td: %d, Ob%b, %d, %d\n", setup_td->link_pointer, setup_td->control_status, setup_td->token, setup_td->buffer_pointer);
+    //printf("status_td: %d, Ob%b, %d, %d\n", status_td->link_pointer, status_td->control_status, status_td->token, status_td->buffer_pointer);
+    
     // Initialize QH
     qh->horizontal_link_pointer = 0x00000001; // Terminate
     qh->vertical_link_pointer = get_physical_address(setup_td);
 
+    printf("setup_packet: 0x%x\n", setup_packet);
+    printf("QH: Horizontal Pointer: 0x%x, Vertical Pointer: 0x%x\n",qh->horizontal_link_pointer,qh->vertical_link_pointer);
+    printf("Setup TD: Self Address: 0x%x, Link Pointer: 0x%x, Control Status: 0x%x, Token: 0x%x, Buffer: 0x%x\n",
+        setup_td, setup_td->link_pointer, setup_td->control_status,
+        setup_td->token, setup_td->buffer_pointer);
+    printf("Status TD: Self Address: 0x%x, Link Pointer: 0x%x, Control Status: 0x%x, Token: 0x%x, Buffer: 0x%x\n",
+        status_td, status_td->link_pointer, status_td->control_status,
+        status_td->token, status_td->buffer_pointer);
+
+    
+    uint16_t current_frame = port_word_in(io_base + 0x6);
+    
+
     // For example, read the Frame Number Register to synchronize
-    uint16_t frame_number = port_word_in(io_base + 0x06) & 0x7FF; // 11 bits
-    // Insert QH into the appropriate frame list entry
-    frame_list[frame_number % 1024] = get_physical_address(qh) | 0x00000002;
+    uint16_t frame_number = current_frame+2;//port_word_in(io_base + 0x06) & 0x7FF; // 11 bits
+    frame_list[(frame_number) % 1024] = get_physical_address(qh) | 0x00000002;
+
+
+
+    uint16_t command = port_word_in(io_base + 0x00);
+    if (!(command & 0x01)) {
+        printf("Controller is not running\n");
+        return 0;
+    }
+
+
+
+    //sleep_ms(1000); // Wait for 1 millisecond
+
+
 
     // Wait for transfer completion
     uhci_wait_for_transfer_complete(setup_td);
 
+    uint16_t status = port_word_in(io_base + 0x02);
+    if (status & 0x02) {
+        printf("USB Error Interrupt occurred\n");
+        // Clear the USBERRINT bit
+        port_word_out(io_base + 0x02, 0x02);
+    }
+
+
     // Check if the transfer was successful
-    if (setup_td->control_status & 0x40) {
+    if (setup_td->control_status & 0x400000) {
         printf("Error in SET_ADDRESS transfer\n");
+        printf("TD SetUp Status: 0x%x\n", setup_td->control_status);
+        printf("TD Status: 0x%x\n", status_td->control_status);
         // Clean up
         free_td(setup_td);
         free_td(status_td);
         free_qh(qh);
+        free_setup_packet(setup_packet);
         return 0;
     } else {
         printf("Device address set to %d\n", new_address);
@@ -200,6 +330,7 @@ int uhci_set_device_address(uint16_t io_base, uint8_t port, uint8_t new_address)
     free_td(setup_td);
     free_td(status_td);
     free_qh(qh);
+    free_setup_packet(setup_packet);
 
     sleep_ms(10); // Wait for the device to process the new address
 
@@ -261,7 +392,7 @@ int uhci_get_device_descriptor(uint16_t io_base, uint8_t device_address, usb_dev
     uhci_wait_for_transfer_complete(data_td);
 
     // Check if the transfer was successful
-    if (data_td->control_status & 0x40) {
+    if (data_td->control_status & 0x400000) {
         printf("Error in GET_DESCRIPTOR transfer\n");
         // Clean up
         free_td(setup_td);
@@ -377,6 +508,7 @@ void uhci_enumerate_device(uint16_t io_base, int port) {
         printf("Failed to get device descriptor on port %d\n", port);
         return;
     }
+
 
     // Step 4: Set configuration
     if (!uhci_set_configuration(io_base, device_address, 1)) {
