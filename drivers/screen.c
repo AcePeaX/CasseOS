@@ -161,7 +161,6 @@ int get_vga_offset_row(int offset) { return offset / (2 * MAX_COLS); }
 int get_vga_offset_col(int offset) { return (offset - (get_vga_offset_row(offset)*2*MAX_COLS))/2; }
 
 
-
 void printf(const char *format, ...) {
     va_list args; // List of variable arguments
     va_start(args, format); // Initialize the list with the format string
@@ -188,6 +187,34 @@ void printf(const char *format, ...) {
                     hex_to_string_trimmed(value, hex_buffer);
                     for (int j = 0; hex_buffer[j] != '\0'; j++) {
                         buffer[buffer_index++] = hex_buffer[j];
+                    }
+                    break;
+                }
+                case 'b': { // Binary with insignificant zeros removed
+                    uint32_t value = va_arg(args, uint32_t);
+                    char binary_buffer[33]; // Max 32 bits + null terminator
+                    int started = 0; // Flag to track if we've encountered the first '1'
+                    int buffer_pos = 0;
+
+                    for (int j = 31; j >= 0; j--) {
+                        char bit = (value & (1 << j)) ? '1' : '0';
+                        if (bit == '1') {
+                            started = 1;
+                        }
+                        if (started) {
+                            binary_buffer[buffer_pos++] = bit;
+                        }
+                    }
+
+                    if (!started) {
+                        // If no '1' was encountered, the value is 0
+                        binary_buffer[buffer_pos++] = '0';
+                    }
+
+                    binary_buffer[buffer_pos] = '\0'; // Null-terminate the string
+
+                    for (int j = 0; binary_buffer[j] != '\0'; j++) {
+                        buffer[buffer_index++] = binary_buffer[j];
                     }
                     break;
                 }
@@ -224,4 +251,3 @@ void printf(const char *format, ...) {
 
     kprint(buffer); // Print the formatted string
 }
-
