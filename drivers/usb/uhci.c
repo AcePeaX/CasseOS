@@ -263,14 +263,9 @@ int uhci_set_device_address(uint16_t io_base, uint8_t port, uint8_t new_address)
     // Initialize Status TD
     status_td->link_pointer = 0x00000001; // Terminate
     status_td->control_status = 0x800000;     // Active
-    status_td->token = (0x69) | (0 << 8) | (0 << 15) | (0 << 16); // PID_IN, Device Address 0, Endpoint 0, Data Length 0
+    status_td->token = (0x69) | (0 << 8) | (0 << 15) | (0 << 21); // PID_IN, Device Address 0, Endpoint 0, Data Length 0
     status_td->buffer_pointer = 0;
 
-
-
-    //printf("setup_td: %d, Ob%b, %d, %d\n", setup_td->link_pointer, setup_td->control_status, setup_td->token, setup_td->buffer_pointer);
-    //printf("status_td: %d, Ob%b, %d, %d\n", status_td->link_pointer, status_td->control_status, status_td->token, status_td->buffer_pointer);
-    
     // Initialize QH
     qh->horizontal_link_pointer = 0x00000001; // Terminate
     qh->vertical_link_pointer = get_physical_address(setup_td);
@@ -288,7 +283,7 @@ int uhci_set_device_address(uint16_t io_base, uint8_t port, uint8_t new_address)
     }
 
     // Wait for transfer completion
-    if(uhci_wait_for_transfer_complete(setup_td)!=1){
+    if(uhci_wait_for_transfer_complete(status_td)!=1){
         return 0;
     }
 
@@ -310,8 +305,6 @@ int uhci_set_device_address(uint16_t io_base, uint8_t port, uint8_t new_address)
         free_qh(qh);
         free_setup_packet(setup_packet);
         return 0;
-    } else {
-        printf("Device address set to %d\n", new_address);
     }
 
     // Clean up
@@ -326,16 +319,19 @@ int uhci_set_device_address(uint16_t io_base, uint8_t port, uint8_t new_address)
     return 1; // Success
 }
 
-
 int uhci_get_device_descriptor(uint16_t io_base, uint8_t device_address, usb_device_descriptor_t* device_desc) {
     // Create the setup packet for GET_DESCRIPTOR
-    usb_setup_packet_t setup_packet = {
-        .bmRequestType = 0x80, // Device to Host, Standard, Device
-        .bRequest = 0x06,      // GET_DESCRIPTOR
-        .wValue = (USB_DESC_TYPE_DEVICE << 8) | 0x00, // Descriptor Type and Index
-        .wIndex = 0,
-        .wLength = sizeof(usb_device_descriptor_t)
-    };
+    usb_setup_packet_t* setup_packet = allocate_setup_packet();
+    if (setup_packet == NULL) {
+        return 0;
+    }
+
+    // Initialize the setup packet
+    setup_packet->bmRequestType = 0x80; // Host to Device, Standard, Device
+    setup_packet->bRequest = 0x06;      // SET_ADDRESS
+    setup_packet->wValue = (USB_DESC_TYPE_DEVICE << 8) | 0x00;
+    setup_packet->wIndex = 0;
+    setup_packet->wLength = sizeof(usb_device_descriptor_t);
 
     UNUSED(io_base);
 
@@ -352,20 +348,20 @@ int uhci_get_device_descriptor(uint16_t io_base, uint8_t device_address, usb_dev
 
     // Initialize Setup TD
     setup_td->link_pointer = get_physical_address(data_td) | 0x04;
-    setup_td->control_status = 0x80; // Active
-    setup_td->token = (0x2D) | (device_address << 8) | (0 << 15) | (8 << 16); // PID_SETUP
-    setup_td->buffer_pointer = get_physical_address(&setup_packet);
+    setup_td->control_status = 0x800000; // Active
+    setup_td->token = (0x2D) | (device_address << 8) | (0 << 15) | (7 << 21); // PID_SETUP
+    setup_td->buffer_pointer = get_physical_address(setup_packet);
 
     // Initialize Data TD
     data_td->link_pointer = get_physical_address(status_td) | 0x04;
-    data_td->control_status = 0x80; // Active
-    data_td->token = (0x69) | (device_address << 8) | (1 << 19) | (sizeof(usb_device_descriptor_t) << 16); // PID_IN, Data Toggle 1
+    data_td->control_status = 0x800000; // Active
+    data_td->token = (0x69) | (device_address << 8) | (1 << 19) | (sizeof(usb_device_descriptor_t) << 21); // PID_IN, Data Toggle 1
     data_td->buffer_pointer = get_physical_address(device_desc);
 
     // Initialize Status TD
     status_td->link_pointer = 0x00000001; // Terminate
-    status_td->control_status = 0x80;     // Active
-    status_td->token = (0xE1) | (device_address << 8) | (1 << 19) | (0 << 16); // PID_OUT, Data Toggle 1
+    status_td->control_status = 0x800000;     // Active
+    status_td->token = (0xE1) | (device_address << 8) | (1 << 19) | (0 << 21); // PID_OUT, Data Toggle 1
     status_td->buffer_pointer = 0;
 
     // Initialize QH
@@ -375,10 +371,12 @@ int uhci_get_device_descriptor(uint16_t io_base, uint8_t device_address, usb_dev
 
     // Insert QH into Frame List
     uint16_t frame_number = port_word_in(io_base + 0x06) & 0x7FF; // 11 bits
-    frame_list[frame_number % 1024] = get_physical_address(qh) | 0x00000002; // Set QH bit
+    frame_list[(frame_number+1) % 1024] = get_physical_address(qh) | 0x00000002; // Set QH bit
 
     // Wait for transfer completion
-    uhci_wait_for_transfer_complete(data_td);
+    if(uhci_wait_for_transfer_complete(status_td)!=1){
+        return 0;
+    }
 
     // Check if the transfer was successful
     if (data_td->control_status & 0x400000) {
@@ -389,8 +387,6 @@ int uhci_get_device_descriptor(uint16_t io_base, uint8_t device_address, usb_dev
         free_td(status_td);
         free_qh(qh);
         return 0;
-    } else {
-        printf("Device Descriptor retrieved\n");
     }
 
     // Clean up
@@ -403,18 +399,19 @@ int uhci_get_device_descriptor(uint16_t io_base, uint8_t device_address, usb_dev
     return 1; // Success
 }
 
-
-
-
 int uhci_set_configuration(uint16_t io_base, uint8_t device_address, uint8_t configuration_value) {
-    // Create the setup packet for SET_CONFIGURATION
-    usb_setup_packet_t setup_packet = {
-        .bmRequestType = 0x00, // Host to Device, Standard, Device
-        .bRequest = 0x09,      // SET_CONFIGURATION
-        .wValue = configuration_value,
-        .wIndex = 0,
-        .wLength = 0
-    };
+    // Create the setup packet for GET_DESCRIPTOR
+    usb_setup_packet_t* setup_packet = allocate_setup_packet();
+    if (setup_packet == NULL) {
+        return 0;
+    }
+
+    // Initialize the setup packet
+    setup_packet->bmRequestType = 0x00; // Host to Device, Standard, Device
+    setup_packet->bRequest = 0x09;      // SET_CONFIGURATION
+    setup_packet->wValue = configuration_value;
+    setup_packet->wIndex = 0;
+    setup_packet->wLength = 0;
 
     UNUSED(io_base);
 
@@ -430,14 +427,14 @@ int uhci_set_configuration(uint16_t io_base, uint8_t device_address, uint8_t con
 
     // Initialize Setup TD
     setup_td->link_pointer = get_physical_address(status_td) | 0x04;
-    setup_td->control_status = 0x80; // Active
-    setup_td->token = (0x2D) | (device_address << 8) | (0 << 15) | (8 << 16); // PID_SETUP
-    setup_td->buffer_pointer = get_physical_address(&setup_packet);
+    setup_td->control_status = 0x800000; // Active
+    setup_td->token = (0x2D) | (device_address << 8) | (0 << 15) | (7 << 21); // PID_SETUP
+    setup_td->buffer_pointer = get_physical_address(setup_packet);
 
     // Initialize Status TD
     status_td->link_pointer = 0x00000001; // Terminate
-    status_td->control_status = 0x80;     // Active
-    status_td->token = (0x69) | (device_address << 8) | (1 << 19) | (0 << 16); // PID_IN, Data Toggle 1
+    status_td->control_status = 0x800000;     // Active
+    status_td->token = (0x69) | (device_address << 8) | (1 << 19) | (0 << 21); // PID_IN, Data Toggle 1
     status_td->buffer_pointer = 0;
 
     // Initialize QH
@@ -449,18 +446,18 @@ int uhci_set_configuration(uint16_t io_base, uint8_t device_address, uint8_t con
     frame_list[frame_number % 1024] = get_physical_address(qh) | 0x00000002; // Set QH bit
 
     // Wait for transfer completion
-    uhci_wait_for_transfer_complete(status_td);
+    if(uhci_wait_for_transfer_complete(status_td)!=1){
+        return 0;
+    }
 
     // Check if the transfer was successful
-    if (status_td->control_status & 0x40) {
+    if (status_td->control_status & (1 << 22)) {
         printf("Error in SET_CONFIGURATION transfer\n");
         // Clean up
         free_td(setup_td);
         free_td(status_td);
         free_qh(qh);
         return 0;
-    } else {
-        printf("Device configured with configuration %d\n", configuration_value);
     }
 
     // Clean up
