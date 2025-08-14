@@ -35,6 +35,7 @@ typedef struct {
     uint8_t num_configurations; // Number of configurations
 } __attribute__((packed)) usb_device_descriptor_t;
 
+
 /* Configuration Descriptor */
 typedef struct {
     uint8_t length;              // Descriptor size (9 bytes)
@@ -59,6 +60,7 @@ typedef struct {
     uint8_t interface_protocol;  // Interface protocol
     uint8_t interface_index;     // Index of interface string descriptor
 } __attribute__((packed)) usb_interface_descriptor_t;
+
 
 /* Endpoint Descriptor */
 typedef struct {

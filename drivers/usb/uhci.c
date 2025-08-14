@@ -270,11 +270,12 @@ int uhci_set_device_address(uint16_t io_base, uint8_t port, uint8_t new_address)
     qh->horizontal_link_pointer = 0x00000001; // Terminate
     qh->vertical_link_pointer = get_physical_address(setup_td);
 
-    uint16_t current_frame = port_word_in(io_base + 0x6);
+    uint16_t current_frame = port_word_in(io_base + 0x6) & 0x7FF;
 
     // For example, read the Frame Number Register to synchronize
     uint16_t frame_number = current_frame+1;//port_word_in(io_base + 0x06) & 0x7FF; // 11 bits
     frame_list[(frame_number) % 1024] = get_physical_address(qh) | 0x00000002;
+    frame_list[(frame_number+1) % 1024] = get_physical_address(qh) | 0x00000002;
 
     uint16_t command = port_word_in(io_base + 0x00);
     if (!(command & 0x01)) {
@@ -309,6 +310,7 @@ int uhci_set_device_address(uint16_t io_base, uint8_t port, uint8_t new_address)
 
     // Clean up
     frame_list[frame_number % 1024] = 0x00000001; // Terminate
+    frame_list[(frame_number+1) % 1024] = 0x00000001; // Terminate
     free_td(setup_td);
     free_td(status_td);
     free_qh(qh);
@@ -370,7 +372,8 @@ int uhci_get_device_descriptor(uint16_t io_base, uint8_t device_address, usb_dev
 
 
     // Insert QH into Frame List
-    uint16_t frame_number = port_word_in(io_base + 0x06) & 0x7FF; // 11 bits
+    uint16_t frame_number = (port_word_in(io_base + 0x06) & 0x7FF)+1; // 11 bits
+    frame_list[(frame_number) % 1024] = get_physical_address(qh) | 0x00000002; // Set QH bit
     frame_list[(frame_number+1) % 1024] = get_physical_address(qh) | 0x00000002; // Set QH bit
 
     // Wait for transfer completion
@@ -390,7 +393,8 @@ int uhci_get_device_descriptor(uint16_t io_base, uint8_t device_address, usb_dev
     }
 
     // Clean up
-    frame_list[frame_number % 1024] = 0x00000001; // Terminate
+    frame_list[(frame_number) % 1024] = 0x00000001; // Terminate
+    frame_list[(frame_number+1) % 1024] = 0x00000001; // Terminate
     free_td(setup_td);
     free_td(data_td);
     free_td(status_td);
@@ -442,8 +446,9 @@ int uhci_set_configuration(uint16_t io_base, uint8_t device_address, uint8_t con
     qh->vertical_link_pointer = get_physical_address(setup_td);
 
     // Insert QH into Frame List
-    uint16_t frame_number = port_word_in(io_base + 0x06) & 0x7FF; // 11 bits
+    uint16_t frame_number = (port_word_in(io_base + 0x06) & 0x7FF) + 1; // 11 bits
     frame_list[frame_number % 1024] = get_physical_address(qh) | 0x00000002; // Set QH bit
+    frame_list[(frame_number+1) % 1024] = get_physical_address(qh) | 0x00000002; // Set QH bit
 
     // Wait for transfer completion
     if(uhci_wait_for_transfer_complete(status_td)!=1){
@@ -462,6 +467,7 @@ int uhci_set_configuration(uint16_t io_base, uint8_t device_address, uint8_t con
 
     // Clean up
     frame_list[frame_number % 1024] = 0x00000001; // Terminate
+    frame_list[(frame_number+1) % 1024] = 0x00000001; // Terminate
     free_td(setup_td);
     free_td(status_td);
     free_qh(qh);
@@ -469,9 +475,159 @@ int uhci_set_configuration(uint16_t io_base, uint8_t device_address, uint8_t con
     return 1; // Success
 }
 
+int uhci_get_configuration_descriptor(uint16_t io_base, uint8_t device_address, usb_configuration_descriptor_t* config_desc) {
+    // Create the setup packet for GET_DESCRIPTOR
+    usb_setup_packet_t* setup_packet = allocate_setup_packet();
+    if (setup_packet == NULL) {
+        return 0;
+    }
+
+    // Initialize the setup packet
+    setup_packet->bmRequestType = 0x80; // Host to Device, Standard, Device
+    setup_packet->bRequest = 0x06;      // GET_DESCRIPTOR
+    setup_packet->wValue = (USB_DESC_TYPE_CONFIGURATION << 8) | 0x00; // Configuration descriptor type
+    setup_packet->wIndex = 0;
+    setup_packet->wLength = sizeof(usb_configuration_descriptor_t);
+
+    // Allocate TDs and QH
+    uhci_td_t* setup_td = allocate_td();
+    uhci_td_t* data_td = allocate_td();
+    uhci_td_t* status_td = allocate_td();
+    uhci_qh_t* qh = allocate_qh();
+
+    if (!setup_td || !data_td || !status_td || !qh) {
+        printf("Error allocating TDs/QH\n");
+        return 0;
+    }
+
+    // Initialize Setup TD
+    setup_td->link_pointer = get_physical_address(data_td) | 0x04;
+    setup_td->control_status = 0x800000; // Active
+    setup_td->token = (0x2D) | (device_address << 8) | (0 << 15) | (7 << 21); // PID_SETUP
+    setup_td->buffer_pointer = get_physical_address(setup_packet);
+
+    // Initialize Data TD
+    data_td->link_pointer = get_physical_address(status_td) | 0x04;
+    data_td->control_status = 0x800000; // Active
+    data_td->token = (0x69) | (device_address << 8) | (1 << 19) | (sizeof(usb_configuration_descriptor_t) << 21); // PID_IN, Data Toggle 1
+    data_td->buffer_pointer = get_physical_address(config_desc);
+
+    // Initialize Status TD
+    status_td->link_pointer = 0x00000001; // Terminate
+    status_td->control_status = 0x800000;     // Active
+    status_td->token = (0xE1) | (device_address << 8) | (1 << 19) | (0 << 21); // PID_OUT, Data Toggle 1
+    status_td->buffer_pointer = 0;
+
+    // Initialize QH
+    qh->horizontal_link_pointer = 0x00000001; // Terminate
+    qh->vertical_link_pointer = get_physical_address(setup_td);
+
+    // Insert QH into Frame List
+    uint16_t frame_number = port_word_in(io_base + 0x06) & 0x7FF; // 11 bits
+    frame_list[frame_number % 1024] = get_physical_address(qh) | 0x00000002; // Set QH bit
+
+    // Wait for transfer completion
+    if (uhci_wait_for_transfer_complete(data_td) != 1) {
+        printf("Error in GET_DESCRIPTOR transfer for configuration descriptor\n");
+        free_td(setup_td);
+        free_td(data_td);
+        free_td(status_td);
+        free_qh(qh);
+        return false;
+    }
+
+    // Clean up
+    frame_list[frame_number % 1024] = 0x00000001; // Terminate
+    free_td(setup_td);
+    free_td(data_td);
+    free_td(status_td);
+    free_qh(qh);
+
+    return 1;
+}
+
+int uhci_get_interface_descriptor(uint16_t io_base, uint8_t device_address, usb_interface_descriptor_t* interface_desc) {
+    // Create the setup packet for GET_DESCRIPTOR
+    usb_setup_packet_t* setup_packet = allocate_setup_packet();
+    if (setup_packet == NULL) {
+        return 0;
+    }
+
+    // Initialize the setup packet
+    setup_packet->bmRequestType = 0x80; // Device to Host, Standard, Device
+    setup_packet->bRequest = 0x06;      // GET_DESCRIPTOR
+    setup_packet->wValue = (USB_DESC_TYPE_INTERFACE << 8) | 0x00; // Interface descriptor type
+    setup_packet->wIndex = 0;
+    setup_packet->wLength = sizeof(usb_interface_descriptor_t);
+
+    // Allocate TDs and QH
+    uhci_td_t* setup_td = allocate_td();
+    uhci_td_t* data_td = allocate_td();
+    uhci_td_t* status_td = allocate_td();
+    uhci_qh_t* qh = allocate_qh();
+
+    if (!setup_td || !data_td || !status_td || !qh) {
+        printf("Error allocating TDs/QH\n");
+        free_setup_packet(setup_packet);
+        return 0;
+    }
+
+    // Initialize Setup TD
+    setup_td->link_pointer = get_physical_address(data_td) | 0x04;
+    setup_td->control_status = 0x800000; // Active
+    setup_td->token = (0x2D) | (device_address << 8) | (0 << 15) | (7 << 21); // PID_SETUP
+    setup_td->buffer_pointer = get_physical_address(setup_packet);
+
+    // Initialize Data TD
+    data_td->link_pointer = get_physical_address(status_td) | 0x04;
+    data_td->control_status = 0x800000; // Active
+    data_td->token = (0x69) | (device_address << 8) | (1 << 19) | (sizeof(usb_interface_descriptor_t) << 21); // PID_IN, Data Toggle 1
+    data_td->buffer_pointer = get_physical_address(interface_desc);
+
+    // Initialize Status TD
+    status_td->link_pointer = 0x00000001; // Terminate
+    status_td->control_status = 0x800000;     // Active
+    status_td->token = (0xE1) | (device_address << 8) | (1 << 19) | (0 << 21); // PID_OUT, Data Toggle 1
+    status_td->buffer_pointer = 0;
+
+    // Initialize QH
+    qh->horizontal_link_pointer = 0x00000001; // Terminate
+    qh->vertical_link_pointer = get_physical_address(setup_td);
+
+    // Insert QH into Frame List
+    uint16_t frame_number = (port_word_in(io_base + 0x06) & 0x7FF) + 1; // 11 bits
+    frame_list[frame_number % 1024] = get_physical_address(qh) | 0x00000002; // Set QH bit
+
+    // Wait for transfer completion
+    if (uhci_wait_for_transfer_complete(setup_td) != 1) {
+        printf("Error in GET_DESCRIPTOR transfer for interface descriptor\n");
+        free_td(setup_td);
+        free_td(data_td);
+        free_td(status_td);
+        free_qh(qh);
+        free_setup_packet(setup_packet);
+        return 0;
+    }
+
+    // Clean up
+    frame_list[frame_number % 1024] = 0x00000001; // Terminate
+    free_td(setup_td);
+    free_td(data_td);
+    free_td(status_td);
+    free_qh(qh);
+    free_setup_packet(setup_packet);
+
+    return 1; // Success
+}
+
 
 
 void uhci_enumerate_device(uint16_t io_base, int port) {
+    if (usb_device_count >= MAX_USB_DEVICES) {
+        printf("Max USB devices reached. Cannot add device on port %d\n", port);
+        return;
+    }
+
     uint8_t device_address = port + 1; // Assign a unique address per port
 
     // Step 1: Reset and detect device
@@ -488,13 +644,13 @@ void uhci_enumerate_device(uint16_t io_base, int port) {
         return;
     }
 
+    usb_device_t *new_device = &usb_devices[usb_device_count++];
+    new_device->address = device_address; // Add device to usb_devices array
     // Step 3: Get device descriptor
-    usb_device_descriptor_t device_desc;
-    if (!uhci_get_device_descriptor(io_base, device_address, &device_desc)) {
+    if (!uhci_get_device_descriptor(io_base, device_address, &(new_device->descriptor))) {
         printf("Failed to get device descriptor on port %d\n", port);
         return;
     }
-
 
     // Step 4: Set configuration
     if (!uhci_set_configuration(io_base, device_address, 1)) {
@@ -502,18 +658,44 @@ void uhci_enumerate_device(uint16_t io_base, int port) {
         return;
     }
 
-    // Print device information
-    printf("Device on port %d:\n", port);
-    printf("  Vendor ID: 0x%x\n", device_desc.vendor_id);
-    printf("  Product ID: 0x%x\n", device_desc.product_id);
-    printf("  Class: 0x%x\n", device_desc.device_class);
-    printf("  Subclass: 0x%x\n", device_desc.device_subclass);
-    printf("  Protocol: 0x%x\n", device_desc.device_protocol);
 
-    // Additional steps:
-    // - Parse configuration descriptor
-    // - Initialize drivers for specific devices (e.g., keyboard driver)
+    // Retrieve configuration descriptor
+    if (!uhci_get_configuration_descriptor(io_base, device_address, &new_device->config_descriptor)) {
+        printf("Failed to get configuration descriptor for device on port %d\n", port);
+        usb_device_count--; // Rollback device addition
+        return;
+    }
+
+    // Retrieve interface descriptor
+    /*if (!uhci_get_interface_descriptor(io_base, device_address, &new_device->interface_descriptor)) {
+        printf("Failed to get interface descriptor for device on port %d\n", port);
+        usb_device_count--; // Rollback device addition
+        return;
+    }*/
+
+    /*// Retrieve endpoint descriptors
+    for (int i = 0; i < new_device->interface_descriptor.num_endpoints; i++) {
+        if (!uhci_get_endpoint_descriptor(io_base, device_address, i, &new_device->endpoint_descriptors[i])) {
+            printf("Failed to get endpoint descriptor %d for device on port %d\n", i, port);
+            usb_device_count--; // Rollback device addition
+            return;
+        }
+    }*/
+
+    // Log device addition
+    printf("Device added on port %d:\n", port);
+    printf("  Address: %d\n", new_device->address);
+    printf("  Vendor ID: 0x%x\n", new_device->descriptor.vendor_id);
+    printf("  Product ID: 0x%x\n", new_device->descriptor.product_id);
+    printf("  Class: 0x%x\n", new_device->descriptor.device_class);
+    printf("  Subclass: 0x%x\n", new_device->descriptor.device_subclass);
+    printf("  Protocol: 0x%x\n", new_device->descriptor.device_protocol);
+    printf("  Serial number: 0x%x\n", new_device->descriptor.serial_number);
+    printf("  Num interfaces: %d\n", new_device->config_descriptor.num_interfaces);
+    printf("  Num configurations: %d\n", new_device->descriptor.num_configurations);
+
 }
+
 
 void uhci_enumerate_devices(usb_controller_t* controller) {
     uint16_t io_base = (uint16_t)(controller->base_address);
