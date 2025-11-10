@@ -103,6 +103,13 @@ void uhci_enumerate_devices(usb_controller_t *controller);
 
 void uhci_reset_port(uint16_t io_base, int port);
 
+int uhci_kbd_open_interrupt_in(uint16_t io_base,
+                                uint8_t dev_addr,
+                                uint8_t endpoint_address,
+                                uint8_t interval_frames,
+                                uint16_t wMaxPacket,
+                                int keyboard_dev_index);
+
 typedef struct {
     uint32_t link_pointer;
     uint32_t control_status;

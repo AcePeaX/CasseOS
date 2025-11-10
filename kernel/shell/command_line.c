@@ -1,5 +1,5 @@
 #include "command_line.h"
-#include "drivers/keyboard.h"
+#include "drivers/keyboard/keyboard.h"
 #include "drivers/screen.h"
 #include "libc/string.h"
 
@@ -17,10 +17,10 @@ bool handle_command_line(uint8_t scancode, char* command){
     kprint(s);
     kprint("\n");
     return true;*/
-    if(scancode==ENTER){
+    /*if(scancode==KB_ENTER){
         return true;
     }
-    else if(scancode==BACKSPACE){
+    else if(scancode==KB_BACKSPACE){
         if(cmd_cursor>0){
             kprint_backspace();
             if(cmd_cursor!=cmd_len){
@@ -37,7 +37,7 @@ bool handle_command_line(uint8_t scancode, char* command){
             cmd_cursor--;
             cmd_len--;
         }
-    } else if(scancode==DEL){
+    } else if(scancode==KB_DEL){
         if(cmd_cursor<cmd_len){
             for(int i=cmd_cursor; i<cmd_len+1; i++){
                 command[i] = command[i+1];
@@ -50,9 +50,9 @@ bool handle_command_line(uint8_t scancode, char* command){
             command[cmd_len-1] = 0;
             cmd_len--;
         }
-    } else if(scancode==ARROW_LEFT){
+    } else if(scancode==KB_ARROW_LEFT){
         if(cmd_cursor>0){cmd_cursor--;}
-    } else if(scancode==ARROW_RIGHT){
+    } else if(scancode==KB_ARROW_RIGHT){
         cmd_cursor++;
         if(cmd_cursor>cmd_len){cmd_cursor=cmd_len;}
     }
@@ -85,6 +85,7 @@ bool handle_command_line(uint8_t scancode, char* command){
         }
     }
     set_cursor_offset((cmd_cursor+cmd_start_offset)*2);
+    */
     return false;
 }
 void flush_command_line(){

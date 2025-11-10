@@ -231,6 +231,18 @@ void uhci_enumerate_device(uint16_t io_base, int port)
                     ep->endpoint_address,
                     ep->interval,
                     ep->max_packet_size);
+
+        if (idx >= 0) {
+        int pipe_id = uhci_kbd_open_interrupt_in(io_base,
+                                dev->address,
+                                ep->endpoint_address,
+                                ep->interval,
+                                ep->max_packet_size, // usually 8
+                                idx /* keyboard logical id */);
+            if (pipe_id < 0) {
+                UHCI_ERR("Failed to open UHCI KBD interrupt pipe\n");
+            }
+        }
     }
 
     UHCI_INFO("\n");

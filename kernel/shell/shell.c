@@ -2,7 +2,7 @@
 #include "shell.h"
 #include "command_line.h"
 #include "drivers/screen.h"
-#include "drivers/keyboard.h"
+#include "drivers/keyboard/keyboard.h"
 #include "cpu/type.h"
 #include "libc/string.h"
 #include "drivers/usb/usb.h"
@@ -18,8 +18,6 @@ extern char key_buffer;
 
 void shell_main_loop(){
     if(start){
-        pci_scan_for_usb_controllers();
-        usb_enumerate_devices();
         kprint("Welcome to CasseOS Shell!\n>");
         flush_command_line();
         init_command_line(get_cursor_offset()/2);
@@ -43,7 +41,7 @@ void shell_main_loop(){
         init_command_line(get_cursor_offset()/2);
     }
     uint8_t scancode;
-    if((scancode = keyboard_buffer_pop())){
+    /*if((scancode = keyboard_buffer_pop())){
         end_command = handle_command_line(scancode,command);
-    }
+    }*/
 }

@@ -1,7 +1,7 @@
 #include "isr.h"
 #include "idt.h"
 #include "../drivers/screen.h"
-#include "../drivers/keyboard.h"
+//#include "../drivers/keyboard/keyboard.h"
 #include "../libc/string.h"
 #include "timer.h"
 #include "ports.h"
@@ -157,6 +157,4 @@ void irq_install() {
     asm volatile("sti");
     /* IRQ0: timer */
     init_timer(4000);
-    /* IRQ1: keyboard */
-    init_keyboard();
 }

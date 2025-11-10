@@ -1,7 +1,7 @@
 // drivers/keyboard/keyboard_usb.c
 #include "keyboard.h"
 #include "../../libc/mem.h"
-#include <string.h>
+#include "libc/string.h"
 #include <stdbool.h>
 
 /* ---- Status flags ----

@@ -39,7 +39,7 @@ LDFLAGS = -T linker.ld
 QEMUFLAGS = -device piix3-usb-uhci \
 		-machine pc \
 		-device usb-kbd \
-		-device usb-mouse \
+		# -device usb-mouse \
 		#-trace usb_uhci
 
 all: os-image
