@@ -357,7 +357,7 @@ int uhci_get_device_descriptor(uint16_t io_base, uint8_t device_address, usb_dev
     // Initialize Data TD
     data_td->link_pointer = get_physical_address(status_td) | 0x04;
     data_td->control_status = 0x800000; // Active
-    data_td->token = (0x69) | (device_address << 8) | (1 << 19) | (sizeof(usb_device_descriptor_t) << 21); // PID_IN, Data Toggle 1
+    data_td->token = (0x69) | (device_address << 8) | (1 << 19) | ((sizeof(usb_device_descriptor_t) - 1) << 21); // PID_IN, Data Toggle 1
     data_td->buffer_pointer = get_physical_address(device_desc);
 
     // Initialize Status TD
@@ -509,7 +509,7 @@ int uhci_get_configuration_descriptor(uint16_t io_base, uint8_t device_address, 
     // Initialize Data TD
     data_td->link_pointer = get_physical_address(status_td) | 0x04;
     data_td->control_status = 0x800000; // Active
-    data_td->token = (0x69) | (device_address << 8) | (1 << 19) | (sizeof(usb_configuration_descriptor_t) << 21); // PID_IN, Data Toggle 1
+    data_td->token = (0x69) | (device_address << 8) | (1 << 19) | ((sizeof(usb_configuration_descriptor_t)-1) << 21); // PID_IN, Data Toggle 1
     data_td->buffer_pointer = get_physical_address(config_desc);
 
     // Initialize Status TD
@@ -546,6 +546,73 @@ int uhci_get_configuration_descriptor(uint16_t io_base, uint8_t device_address, 
     return 1;
 }
 
+int uhci_get_full_configuration_descriptor(uint16_t io_base, uint8_t device_address,
+                                           uint8_t *buffer, uint16_t total_length) {
+    // Create the setup packet for GET_DESCRIPTOR
+    usb_setup_packet_t* setup_packet = allocate_setup_packet();
+    if (!setup_packet) return 0;
+
+    // Initialize the setup packet
+    setup_packet->bmRequestType = 0x80; // Device-to-Host, Standard, Device
+    setup_packet->bRequest = 0x06;      // GET_DESCRIPTOR
+    setup_packet->wValue = (USB_DESC_TYPE_CONFIGURATION << 8) | 0x00;
+    setup_packet->wIndex = 0;
+    setup_packet->wLength = total_length;
+
+    // Allocate TDs and QH
+    uhci_td_t* setup_td = allocate_td();
+    uhci_td_t* data_td = allocate_td();
+    uhci_td_t* status_td = allocate_td();
+    uhci_qh_t* qh = allocate_qh();
+
+    if (!setup_td || !data_td || !status_td || !qh) {
+        printf("Allocation failed for full config descriptor transfer\n");
+        return 0;
+    }
+
+    // Setup TD
+    setup_td->link_pointer = get_physical_address(data_td) | 0x04;
+    setup_td->control_status = 0x800000;
+    setup_td->token = (0x2D) | (device_address << 8) | (0 << 15) | (7 << 21);
+    setup_td->buffer_pointer = get_physical_address(setup_packet);
+
+    // Data TD
+    data_td->link_pointer = get_physical_address(status_td) | 0x04;
+    data_td->control_status = 0x800000;
+    data_td->token = (0x69) | (device_address << 8) | (1 << 19) | ((total_length - 1) << 21);
+    data_td->buffer_pointer = get_physical_address(buffer);
+
+    // Status TD
+    status_td->link_pointer = 0x00000001;
+    status_td->control_status = 0x800000;
+    status_td->token = (0xE1) | (device_address << 8) | (1 << 19) | (0 << 21);
+    status_td->buffer_pointer = 0;
+
+    // Queue Head
+    qh->horizontal_link_pointer = 0x00000001;
+    qh->vertical_link_pointer = get_physical_address(setup_td);
+
+    // Insert QH into frame list
+    uint16_t frame_number = (port_word_in(io_base + 0x06) & 0x7FF);
+    frame_list[frame_number % 1024] = get_physical_address(qh) | 0x00000002;
+
+    // Wait for transfer to complete
+    if (uhci_wait_for_transfer_complete(data_td) != 1) {
+        printf("GET_DESCRIPTOR (full config) failed\n");
+        free_td(setup_td); free_td(data_td); free_td(status_td); free_qh(qh);
+        free_setup_packet(setup_packet);
+        return 0;
+    }
+
+    // Cleanup
+    frame_list[frame_number % 1024] = 0x00000001;
+    free_td(setup_td); free_td(data_td); free_td(status_td); free_qh(qh);
+    free_setup_packet(setup_packet);
+
+    return 1; // success
+}
+
+
 int uhci_get_interface_descriptor(uint16_t io_base, uint8_t device_address, usb_interface_descriptor_t* interface_desc) {
     // Create the setup packet for GET_DESCRIPTOR
     usb_setup_packet_t* setup_packet = allocate_setup_packet();
@@ -581,7 +648,7 @@ int uhci_get_interface_descriptor(uint16_t io_base, uint8_t device_address, usb_
     // Initialize Data TD
     data_td->link_pointer = get_physical_address(status_td) | 0x04;
     data_td->control_status = 0x800000; // Active
-    data_td->token = (0x69) | (device_address << 8) | (1 << 19) | (sizeof(usb_interface_descriptor_t) << 21); // PID_IN, Data Toggle 1
+    data_td->token = (0x69) | (device_address << 8) | (1 << 19) | ((sizeof(usb_interface_descriptor_t) - 1) << 21); // PID_IN, Data Toggle 1
     data_td->buffer_pointer = get_physical_address(interface_desc);
 
     // Initialize Status TD
@@ -620,6 +687,177 @@ int uhci_get_interface_descriptor(uint16_t io_base, uint8_t device_address, usb_
     return 1; // Success
 }
 
+// Pretty-print the full Configuration descriptor blob (Config + Interface + HID + Endpoint)
+static void usb_dump_configuration_blob(const uint8_t *buf, uint16_t total_len) {
+    uint16_t off = 0;
+
+    printf("----- USB Configuration Blob (%u bytes) -----\n", (unsigned int)total_len);
+
+    while (off + 2 <= total_len) {
+        uint8_t bLength = buf[off];
+        uint8_t bType   = buf[off + 1];
+
+        if (bLength == 0) {
+            printf("  [!] bLength == 0 at offset %u, stopping.\n", (unsigned int)off);
+            break;
+        }
+        if (off + bLength > total_len) {
+            printf("  [!] Descriptor overruns buffer: off=%u len=%u total=%u\n",
+                   (unsigned int)off, (unsigned int)bLength, (unsigned int)total_len);
+            break;
+        }
+
+        switch (bType) {
+            case USB_DESC_TYPE_CONFIGURATION: {
+                const usb_configuration_descriptor_t *cd =
+                    (const usb_configuration_descriptor_t *)&buf[off];
+                printf("\nCONFIGURATION @%u\n", (unsigned int)off);
+                printf("  total_length=%u  num_interfaces=%u\n",
+                       (unsigned int)cd->total_length, cd->num_interfaces);
+                printf("  value=%u  index=%u  attrs=0x%x  max_power=%u\n",
+                       cd->configuration_value, cd->configuration_index,
+                       cd->attributes, cd->max_power);
+                break;
+            }
+            case USB_DESC_TYPE_INTERFACE: {
+                const usb_interface_descriptor_t *id =
+                    (const usb_interface_descriptor_t *)&buf[off];
+                printf("\nINTERFACE @%u\n", (unsigned int)off);
+                printf("  num=%u  alt=%u  eps=%u\n",
+                       id->interface_number, id->alternate_setting, id->num_endpoints);
+                printf("  class=0x%x  subcls=0x%x  proto=0x%x  idx=%u\n",
+                       id->interface_class, id->interface_subclass,
+                       id->interface_protocol, id->interface_index);
+                break;
+            }
+            case USB_DESC_TYPE_HID: {
+                const usb_hid_descriptor_t *hid =
+                    (const usb_hid_descriptor_t *)&buf[off];
+                printf("\nHID @%u\n", (unsigned int)off);
+                printf("  ver=0x%x  country=%u  descs=%u\n",
+                       hid->hid_version, hid->country_code, hid->num_descriptors);
+                printf("  report_type=0x%x  report_len=%u\n",
+                       hid->report_type, hid->report_length);
+                break;
+            }
+            case USB_DESC_TYPE_ENDPOINT: {
+                const usb_endpoint_descriptor_t *ep =
+                    (const usb_endpoint_descriptor_t *)&buf[off];
+                printf("\nENDPOINT @%u\n", (unsigned int)off);
+                uint8_t dir = (ep->endpoint_address & 0x80) ? 1 : 0;
+                printf("  addr=0x%x  dir=%s  attr=0x%x\n",
+                       ep->endpoint_address, dir ? "IN" : "OUT", ep->attributes);
+                printf("  max_packet=%u  interval=%u\n",
+                       ep->max_packet_size, ep->interval);
+                break;
+            }
+            default:
+                printf("\nUNKNOWN DESC type=0x%x len=%u @%u\n",
+                       bType, bLength, (unsigned int)off);
+                break;
+        }
+
+        sleep_ms(1000);
+
+        off += bLength;
+    }
+
+    printf("\n----- End of Configuration Blob -----\n");
+}
+
+// Robust two-pass parser.
+// Returns 1 on success, 0 on failure.
+// Fills dev->config_descriptor, dev->interface_descriptor (chosen IF), and dev->endpoint_descriptors[0] (INT IN).
+static int usb_parse_config_blob_into_device(const uint8_t *buf, uint16_t total_len, usb_device_t *dev) {
+    if (!buf || !dev) return 0;
+    if (total_len < sizeof(usb_configuration_descriptor_t)) return 0;
+
+    // Copy the 9-byte configuration header so you can read configuration_value, num_interfaces, etc.
+    memory_copy(&dev->config_descriptor, buf, sizeof(usb_configuration_descriptor_t));
+
+    // ---------- Pass 1: choose interface ----------
+    uint16_t off = 0;
+    int have_any_if = 0;
+    int chose_keyboard_if = 0;
+    usb_interface_descriptor_t first_if = {0};
+    usb_interface_descriptor_t best_if = {0};
+
+    while (off + 2 <= total_len) {
+        uint8_t len  = buf[off + 0];
+        uint8_t type = buf[off + 1];
+        if (len == 0 || off + len > total_len) break;
+        if (type == USB_DESC_TYPE_INTERFACE) {
+            const usb_interface_descriptor_t *id = (const usb_interface_descriptor_t *)&buf[off];
+
+            if (!have_any_if) {
+                memory_copy(&first_if, id, sizeof(*id));
+                have_any_if = 1;
+            }
+
+            // Prefer HID Boot Keyboard (class=0x03, sub=0x01, proto=0x01)
+            if (id->interface_class == USB_CLASS_HID &&
+                id->interface_subclass == USB_SUBCLASS_BOOT &&
+                id->interface_protocol == USB_PROTOCOL_KEYBOARD) {
+                memory_copy(&best_if, id, sizeof(*id));
+                chose_keyboard_if = 1;
+                // Don't break; keep scanning in case there are multiple such IFs; last one wins (fine).
+            }
+        }
+
+        off += len;
+    }
+
+    if (!have_any_if) {
+        printf("No interface descriptors in configuration blob\n");
+        return 0;
+    }
+
+    if (!chose_keyboard_if) {
+        // Fallback to the first interface if no keyboard present (useful for debugging other devices)
+        memory_copy(&best_if, &first_if, sizeof(best_if));
+    }
+
+    memory_copy(&dev->interface_descriptor, &best_if, sizeof(best_if));
+
+    // ---------- Pass 2: find endpoint(s) for that chosen interface ----------
+    // We’ll walk again and, after seeing the chosen IF, capture the first Interrupt IN endpoint.
+    off = 0;
+    int in_chosen_if_block = 0;
+    int have_ep_in = 0;
+
+    while (off + 2 <= total_len) {
+        uint8_t len  = buf[off + 0];
+        uint8_t type = buf[off + 1];
+        if (len == 0 || off + len > total_len) break;
+
+        if (type == USB_DESC_TYPE_INTERFACE) {
+            const usb_interface_descriptor_t *id = (const usb_interface_descriptor_t *)&buf[off];
+            // Enter this interface “block” if it matches the chosen interface_number and alt setting.
+            in_chosen_if_block = (id->interface_number == dev->interface_descriptor.interface_number) &&
+                                 (id->alternate_setting == dev->interface_descriptor.alternate_setting);
+        } else if (type == USB_DESC_TYPE_ENDPOINT && in_chosen_if_block) {
+            const usb_endpoint_descriptor_t *ep = (const usb_endpoint_descriptor_t *)&buf[off];
+            // We want Interrupt IN (type==3, dir==IN)
+            if (((ep->attributes & 0x3) == 0x3) && (ep->endpoint_address & 0x80)) {
+                memory_copy(&dev->endpoint_descriptors[0], ep, sizeof(*ep));
+                have_ep_in = 1;
+                // We can stop once we have the first interrupt IN endpoint.
+                break;
+            }
+        }
+
+        off += len;
+    }
+
+    if (!have_ep_in) {
+        printf("No interrupt IN endpoint found for interface %u (alt %u)\n",
+               dev->interface_descriptor.interface_number,
+               dev->interface_descriptor.alternate_setting);
+        return 0;
+    }
+
+    return 1;
+}
 
 
 void uhci_enumerate_device(uint16_t io_base, int port) {
@@ -644,6 +882,8 @@ void uhci_enumerate_device(uint16_t io_base, int port) {
         return;
     }
 
+    sleep_ms(10);
+
     usb_device_t *new_device = &usb_devices[usb_device_count++];
     new_device->address = device_address; // Add device to usb_devices array
     // Step 3: Get device descriptor
@@ -652,6 +892,40 @@ void uhci_enumerate_device(uint16_t io_base, int port) {
         return;
     }
 
+    // Step 4: Read only 9 bytes of configuration descriptor (to get total length)
+    usb_configuration_descriptor_t short_config;
+    if (!uhci_get_configuration_descriptor(io_base, device_address, &short_config)) {
+        printf("    Failed to get short configuration descriptor on port %d\n", port);
+        return;
+    }
+
+    uint16_t total_length = short_config.total_length;
+    printf("Config total length = %u bytes\n", total_length);
+
+    uint8_t *full_config = (uint8_t *)aligned_alloc(16, total_length);
+    if (!full_config) {
+        printf("Memory allocation failed for full configuration descriptor\n");
+        return;
+    }
+
+    if (!uhci_get_full_configuration_descriptor(io_base, device_address, full_config, total_length)) {
+        // you'll implement this like uhci_get_configuration_descriptor, but wLength = total_length
+        printf("Failed to get full configuration descriptor\n");
+        aligned_free(full_config);
+        return;
+    }
+
+    //usb_dump_configuration_blob(full_config, total_length);
+    
+    
+    // Parse the blob into the device record (config, interface, endpoint[0])
+    if (!usb_parse_config_blob_into_device(full_config, total_length, new_device)) {
+        printf("Parsing configuration blob failed (no suitable interface/endpoint)\n");
+        aligned_free(full_config);
+        return;
+    }
+    
+
     // Step 4: Set configuration
     if (!uhci_set_configuration(io_base, device_address, 1)) {
         printf("Failed to set configuration on port %d\n", port);
@@ -659,41 +933,53 @@ void uhci_enumerate_device(uint16_t io_base, int port) {
     }
 
 
-    // Retrieve configuration descriptor
-    if (!uhci_get_configuration_descriptor(io_base, device_address, &new_device->config_descriptor)) {
-        printf("Failed to get configuration descriptor for device on port %d\n", port);
-        usb_device_count--; // Rollback device addition
-        return;
+
+    const usb_interface_descriptor_t *ifs = &new_device->interface_descriptor;
+    const usb_endpoint_descriptor_t  *ep  = &new_device->endpoint_descriptors[0];
+
+    int is_hid_kbd =    (ifs->interface_class == USB_CLASS_HID) &&
+                        (ifs->interface_subclass == USB_SUBCLASS_BOOT) &&
+                        (ifs->interface_protocol == USB_PROTOCOL_KEYBOARD);
+
+    printf("\n=== USB device on port %d ===\n", port);
+    printf("  Address            : %u\n", (unsigned int)new_device->address);
+    printf("  VID:PID            : %x:%x\n",
+            (unsigned int)new_device->descriptor.vendor_id,
+            (unsigned int)new_device->descriptor.product_id);
+    printf("  USB spec           : 0x%x\n", (unsigned int)new_device->descriptor.usb_version);
+    printf("  EP0 max packet     : %u\n", (unsigned int)new_device->descriptor.max_packet_size);
+
+    printf("  Config value       : %u\n", (unsigned int)new_device->config_descriptor.configuration_value);
+    printf("  Interfaces         : %u\n", (unsigned int)new_device->config_descriptor.num_interfaces);
+    printf("  Attributes         : 0x%x\n", (unsigned int)new_device->config_descriptor.attributes);
+    printf("  Max power (2mA)    : %u\n", (unsigned int)new_device->config_descriptor.max_power);
+
+    printf("  Chosen IF          : num=%u alt=%u class=0x%x subcls=0x%x proto=0x%x\n",
+            (unsigned int)ifs->interface_number,
+            (unsigned int)ifs->alternate_setting,
+            (unsigned int)ifs->interface_class,
+            (unsigned int)ifs->interface_subclass,
+            (unsigned int)ifs->interface_protocol);
+    printf("  HID Boot Keyboard  : %s\n", is_hid_kbd ? "yes" : "no");
+
+    // Endpoint 0 holds the first INT IN we parsed for this IF
+    printf("  INT IN endpoint    : addr=0x%x  (ep=%u, %s)\n",
+            (unsigned int)ep->endpoint_address,
+            (unsigned int)(ep->endpoint_address & 0x0F),
+            (ep->endpoint_address & 0x80) ? "IN" : "OUT");
+    printf("    type(attr)       : 0x%x  (expect 0x3 for interrupt)\n",
+            (unsigned int)ep->attributes);
+    printf("    wMaxPacketSize   : %u\n", (unsigned int)ep->max_packet_size);
+    printf("    bInterval (ms)   : %u\n", (unsigned int)ep->interval);
+
+    // Handy hint for your scheduler:
+    if (is_hid_kbd) {
+        printf("  -> Poll this endpoint every %u ms (frame interval), keep a persistent TD in the frame list.\n",
+                (unsigned int)ep->interval);
     }
+    printf("===============================\n\n");
 
-    // Retrieve interface descriptor
-    /*if (!uhci_get_interface_descriptor(io_base, device_address, &new_device->interface_descriptor)) {
-        printf("Failed to get interface descriptor for device on port %d\n", port);
-        usb_device_count--; // Rollback device addition
-        return;
-    }*/
-
-    /*// Retrieve endpoint descriptors
-    for (int i = 0; i < new_device->interface_descriptor.num_endpoints; i++) {
-        if (!uhci_get_endpoint_descriptor(io_base, device_address, i, &new_device->endpoint_descriptors[i])) {
-            printf("Failed to get endpoint descriptor %d for device on port %d\n", i, port);
-            usb_device_count--; // Rollback device addition
-            return;
-        }
-    }*/
-
-    // Log device addition
-    printf("Device added on port %d:\n", port);
-    printf("  Address: %d\n", new_device->address);
-    printf("  Vendor ID: 0x%x\n", new_device->descriptor.vendor_id);
-    printf("  Product ID: 0x%x\n", new_device->descriptor.product_id);
-    printf("  Class: 0x%x\n", new_device->descriptor.device_class);
-    printf("  Subclass: 0x%x\n", new_device->descriptor.device_subclass);
-    printf("  Protocol: 0x%x\n", new_device->descriptor.device_protocol);
-    printf("  Serial number: 0x%x\n", new_device->descriptor.serial_number);
-    printf("  Num interfaces: %d\n", new_device->config_descriptor.num_interfaces);
-    printf("  Num configurations: %d\n", new_device->descriptor.num_configurations);
-
+    //sleep_ms(1000);
 }
 
 

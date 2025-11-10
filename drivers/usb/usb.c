@@ -3,6 +3,7 @@
 #include "libc/string.h"
 #include "cpu/ports.h"
 #include "uhci.h"
+#include "cpu/timer.h"
 #include <stddef.h>
 
 
@@ -68,6 +69,7 @@ void usb_enumerate_devices() {
             printf("The current controller is of type: UHCI\n");
             uhci_initialize_controller(controller);
             uhci_enumerate_devices(controller);
+            //sleep_ms(3000);
         } else if(controller->pci_device->prog_if==0x10){
             printf("USB driver for OHCI not yet available.\n");
         } else if(controller->pci_device->prog_if==0x20){
