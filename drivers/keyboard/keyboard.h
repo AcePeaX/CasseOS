@@ -1,79 +1,117 @@
-#ifndef DRIVERS_KEYBOARD_KEYBOARD_H
-#define DRIVERS_KEYBOARD_KEYBOARD_H
-
+// drivers/keyboard/keyboard.h
+#pragma once
 #include <stdint.h>
-#include <stdbool.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+// ---------- Sources ----------
+typedef enum {
+    KDEV_SOURCE_PS2 = 1,
+    KDEV_SOURCE_USB = 2,
+} kbd_source_t;
 
-/* ----- Public key constants (match your old code where possible) ----- */
-#define KB_BACKSPACE   0x0E   /* PS/2 set1 scancode for backspace (press) */
-#define KB_ENTER       0x1C
-#define KB_LSHIFT      0x2A
-#define KB_RSHIFT      0x36
-#define KB_LCTRL       0x1D
-#define KB_CAPSLOCK    0x3A
-#define KB_LALT        0x38
+// ---------- Event types ----------
+typedef enum {
+    KEY_EV_PRESS   = 1,
+    KEY_EV_RELEASE = 2,
+    KEY_EV_REPEAT  = 3,
+} key_event_type_t;
 
-#define KB_ARROW_RIGHT 0x4D
-#define KB_ARROW_LEFT 0x4B
-#define KB_ARROW_UP 0x48
-#define KB_ARROW_DOWN 0x50
-/* These are symbolic — USB path uses HID usage IDs; we convert to ASCII here. */
+// ---------- Modifiers (bitmask in uint16_t) ----------
+#define KM_SHIFT    (1u << 0)
+#define KM_CTRL     (1u << 1)
+#define KM_ALT      (1u << 2)
+#define KM_GUI      (1u << 3)   // Win/Cmd
 
+#define KM_RSHIFT   (1u << 4)
+#define KM_RCTRL    (1u << 5)
+#define KM_RALT     (1u << 6)
+#define KM_RGUI     (1u << 7)
+
+#define KM_CAPS     (1u << 8)
+#define KM_NUM      (1u << 9)
+#define KM_SCROLL   (1u << 10)
+
+// ---------- Keycode type ----------
+typedef uint16_t keycode_t;   // ASCII fits in 0x00..0x7F; extended start at 0x0100
+
+// ASCII-compatible (use the real ASCII code for printables)
+#define KC_NONE        ((keycode_t)0x0000)
+#define KC_BACKSPACE   ((keycode_t)0x0008)
+#define KC_TAB         ((keycode_t)0x0009)
+#define KC_ENTER       ((keycode_t)0x000D)
+#define KC_ESC         ((keycode_t)0x001B)
+#define KC_SPACE       ((keycode_t)0x0020)
+
+/* Extended keys (>= 0x0100) — stable across PS/2 & USB */
+#define KC_BASE_EXT    ((keycode_t)0x0100)
+
+#define KC_UP          (KC_BASE_EXT + 0x00)
+#define KC_DOWN        (KC_BASE_EXT + 0x01)
+#define KC_LEFT        (KC_BASE_EXT + 0x02)
+#define KC_RIGHT       (KC_BASE_EXT + 0x03)
+#define KC_HOME        (KC_BASE_EXT + 0x04)
+#define KC_END         (KC_BASE_EXT + 0x05)
+#define KC_PGUP        (KC_BASE_EXT + 0x06)
+#define KC_PGDN        (KC_BASE_EXT + 0x07)
+#define KC_INSERT      (KC_BASE_EXT + 0x08)
+#define KC_DELETE      (KC_BASE_EXT + 0x09)
+
+#define KC_F1          (KC_BASE_EXT + 0x20)
+#define KC_F2          (KC_BASE_EXT + 0x21)
+#define KC_F3          (KC_BASE_EXT + 0x22)
+#define KC_F4          (KC_BASE_EXT + 0x23)
+#define KC_F5          (KC_BASE_EXT + 0x24)
+#define KC_F6          (KC_BASE_EXT + 0x25)
+#define KC_F7          (KC_BASE_EXT + 0x26)
+#define KC_F8          (KC_BASE_EXT + 0x27)
+#define KC_F9          (KC_BASE_EXT + 0x28)
+#define KC_F10         (KC_BASE_EXT + 0x29)
+#define KC_F11         (KC_BASE_EXT + 0x2A)
+#define KC_F12         (KC_BASE_EXT + 0x2B)
+
+#define KC_CAPS_LOCK   (KC_BASE_EXT + 0x40)
+#define KC_NUM_LOCK    (KC_BASE_EXT + 0x41)
+#define KC_SCROLL_LOCK (KC_BASE_EXT + 0x42)
+
+#define KC_LSHIFT      (KC_BASE_EXT + 0x50)
+#define KC_RSHIFT      (KC_BASE_EXT + 0x51)
+#define KC_LCTRL       (KC_BASE_EXT + 0x52)
+#define KC_RCTRL       (KC_BASE_EXT + 0x53)
+#define KC_LALT        (KC_BASE_EXT + 0x54)
+#define KC_RALT        (KC_BASE_EXT + 0x55)
+#define KC_LGUI        (KC_BASE_EXT + 0x56)
+#define KC_RGUI        (KC_BASE_EXT + 0x57)
+
+/* (Optional) Keypad */
+#define KC_KP_0        (KC_BASE_EXT + 0x80)
+#define KC_KP_1        (KC_BASE_EXT + 0x81)
+#define KC_KP_2        (KC_BASE_EXT + 0x82)
+#define KC_KP_3        (KC_BASE_EXT + 0x83)
+#define KC_KP_4        (KC_BASE_EXT + 0x84)
+#define KC_KP_5        (KC_BASE_EXT + 0x85)
+#define KC_KP_6        (KC_BASE_EXT + 0x86)
+#define KC_KP_7        (KC_BASE_EXT + 0x87)
+#define KC_KP_8        (KC_BASE_EXT + 0x88)
+#define KC_KP_9        (KC_BASE_EXT + 0x89)
+#define KC_KP_DOT      (KC_BASE_EXT + 0x8A)
+#define KC_KP_ENTER    (KC_BASE_EXT + 0x8B)
+#define KC_KP_PLUS     (KC_BASE_EXT + 0x8C)
+#define KC_KP_MINUS    (KC_BASE_EXT + 0x8D)
+#define KC_KP_STAR     (KC_BASE_EXT + 0x8E)
+#define KC_KP_SLASH    (KC_BASE_EXT + 0x8F)
+
+// ---------- Event ----------
 typedef struct {
-    uint8_t pressed;   /* 1=keydown, 0=keyup */
-    uint8_t ascii;     /* 0 if non-printable */
-    uint16_t code;     /* PS/2 scancode or HID usage (for debugging) */
-    uint8_t modifiers; /* bit0=Ctrl, bit1=Shift, bit2=Alt, bit3=Caps */
-} KeyEvent;
+    key_event_type_t type;   // PRESS/RELEASE/REPEAT
+    keycode_t        code;   // ASCII or extended KC_*
+    uint16_t         mods;   // KM_* mask (state after applying event)
+    kbd_source_t     src;    // PS/2 or USB
+    uint8_t          dev_id; // 0 for PS/2; USB logical id for USB devices
+} key_event_t;
 
-/* ----- Subsystem init / config ----- */
-void keyboard_subsystem_init(void);
+// ---------- Public API ----------
+void kbd_dispatch_event(const key_event_t* ev);
+uint16_t kbd_mods_state(void);
+void kbd_set_lock_leds(uint8_t caps, uint8_t num, uint8_t scroll);
 
-/* Keyboard layout: 0 = QWERTY, 1 = AZERTY (matches your old set) */
-void keyboard_set_layout(uint8_t layout_id);
-
-/* Auto echo to screen toggle (if you had that behavior elsewhere) */
-void keyboard_set_auto_display(uint8_t on);
-
-/* ----- Producer-side APIs (drivers feed events here) ----- */
-
-/* PS/2 ISR should call this with raw set1 scancode (make/break). */
-void keyboard_on_ps2_scancode(uint8_t scancode);
-
-/* Helpers for managing USB keyboards */
-int  keyboard_register_usb_boot_keyboard(uint8_t address,
-                                            uint8_t endpoint_addr,
-                                            uint8_t interval_ms,
-                                            uint16_t wMaxPacketSize);
-
-/* Enable/disable a registered keyboard without freeing its slot */
-void keyboard_usb_set_enabled(int dev_index, bool enabled);
-bool keyboard_usb_is_enabled(int dev_index);
-void keyboard_usb_unregister(int dev_index);
-
-/* Feed 8-byte HID Boot report from UHCI */
-void keyboard_usb_on_boot_report(int dev_index, const uint8_t report[8]);
-
-
-/* Optionally clear/unregister all (e.g., on bus reset). */
-void keyboard_unregister_all(void);
-
-/* ----- Consumer-side APIs (TTY / shell reads) ----- */
-
-/* Non-blocking: 1 if a char is available to pop, else 0. */
-int  keyboard_has_char(void);
-
-/* Pop next ASCII char (returns 0 if none). Backspace and Enter preserved. */
-char keyboard_read_char(void);
-
-/* Optional: read a richer event (returns 0 if none). */
-int  keyboard_read_event(KeyEvent *ev);
-
-#ifdef __cplusplus
-}
-#endif
-#endif /* DRIVERS_KEYBOARD_KEYBOARD_H */
+uint8_t kbd_register_device(kbd_source_t src, uint8_t hw_id);
+void    kbd_unregister_device(uint8_t logical_id);
