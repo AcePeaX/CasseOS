@@ -2,7 +2,7 @@
 #include "drivers/pci.h"
 #include "libc/string.h"
 #include "cpu/ports.h"
-#include "uhci.h"
+#include "uhci/uhci.h"
 #include "cpu/timer.h"
 #include <stddef.h>
 
