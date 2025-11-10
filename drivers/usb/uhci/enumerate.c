@@ -233,7 +233,7 @@ void uhci_enumerate_device(uint16_t io_base, int port)
                     ep->max_packet_size);
 
         if (idx >= 0) {
-        int pipe_id = uhci_kbd_open_interrupt_in(io_base,
+            int pipe_id = uhci_kbd_open_interrupt_in(io_base,
                                 dev->address,
                                 ep->endpoint_address,
                                 ep->interval,

@@ -15,7 +15,7 @@ void kernel_main() {
     pci_scan();
     pci_scan_for_usb_controllers();
     usb_enumerate_devices();
-    //keyboard_subsystem_init();
+    kbd_subsystem_init();
 
     
     while(true){

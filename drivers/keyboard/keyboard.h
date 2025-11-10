@@ -115,3 +115,16 @@ void kbd_set_lock_leds(uint8_t caps, uint8_t num, uint8_t scroll);
 
 uint8_t kbd_register_device(kbd_source_t src, uint8_t hw_id);
 void    kbd_unregister_device(uint8_t logical_id);
+
+// ---- Lifecycle / options ----
+void     kbd_subsystem_init(void);        // sets layout, clears buffers, etc.
+void     kbd_set_layout(uint8_t layout);  // 0=QWERTY, 1=AZERTY (or what you prefer)
+void     kbd_enable_auto_echo(int on);    // if on, echoes printable chars via a weak hook
+
+// ---- Simple char I/O ----
+int      kbd_has_char(void);              // non-blocking: >0 if a char is ready
+char     kbd_read_char(void);             // non-blocking: returns 0 if none
+char     kbd_getchar_blocking(void);      // blocking convenience
+
+// ---- Raw event I/O ----
+int      kbd_read_event(key_event_t* ev); // non-blocking: 1 ok, 0 none

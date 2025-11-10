@@ -41,6 +41,13 @@ void shell_main_loop(){
         init_command_line(get_cursor_offset()/2);
     }
     uint8_t scancode;
+    key_event_t ev;
+    //printf("Check\n");
+    while (kbd_read_event(&ev)) {
+        if (ev.type == KEY_EV_PRESS) {
+            printf("Clicked!\n");
+        }
+    }
     /*if((scancode = keyboard_buffer_pop())){
         end_command = handle_command_line(scancode,command);
     }*/

@@ -4,6 +4,10 @@
 #include "libc/mem.h"
 #include "cpu/ports.h"
 
+#define TD_ACTIVE   (1u << 23)   // 0x0080_0000 in your code
+#define TD_IOC      (1u << 24)   // raise IRQ on completion
+#define TD_SPD      (1u << 29)   // Short Packet Detect (recommended for IN)
+
 typedef struct {
     uint8_t      in_use;
     uint16_t     io_base;
@@ -37,11 +41,12 @@ static inline uint32_t uhci_build_in_token(uint8_t addr, uint8_t ep, uint8_t tog
     // bits 15..18 = endpoint
     // bit  19     = data toggle
     // bits 21..31 = MaxLen-1
-    return  (0x69)
+    uint32_t m1 = (max_len ? (max_len - 1) : 0) & 0x7FF;
+    return  0x69
             | ((uint32_t)addr << 8)
             | ((uint32_t)(ep & 0x0F) << 15)
             | ((uint32_t)(toggle ? 1 : 0) << 19)
-            | ((uint32_t)(max_len ? (max_len - 1) : 0) << 21);
+            | (m1 << 21);
 }
 
 static void place_qh_every_interval(uhci_kbd_pipe_t *p)
@@ -94,7 +99,7 @@ int uhci_kbd_open_interrupt_in(uint16_t io_base,
 
             // TD
             p->td->link_pointer  = 0x00000001; // terminate
-            p->td->control_status= 0x800000;   // Active
+            p->td->control_status= TD_ACTIVE | TD_IOC | TD_SPD;   // Active
             p->td->token         = uhci_build_in_token(p->dev_addr, p->ep, p->toggle, 8);
             p->td->buffer_pointer= get_physical_address(p->buf);
 
@@ -165,6 +170,6 @@ void uhci_kbd_service(void)
         // Re-arm: toggle data toggle, set Active, keep same buffer
         p->toggle ^= 1;
         td->token = uhci_build_in_token(p->dev_addr, p->ep, p->toggle, 8);
-        td->control_status = 0x800000; // Active again
+        td->control_status = TD_ACTIVE | TD_IOC | TD_SPD; // Active again
     }
 }

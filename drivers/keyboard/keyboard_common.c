@@ -1,5 +1,4 @@
 #include "keyboard.h"
-#include "../screen.h"          // screen_put if you auto-echo
 #include "cpu/ports.h"
 #include "cpu/isr.h"
 #include "libc/mem.h"
@@ -21,10 +20,10 @@ static uint16_t ascii_head = 0, ascii_tail = 0;
 /* =========================
    Global keyboard state
    ========================= */
-static uint8_t g_layout = 1;        /* 0=QWERTY, 1=AZERTY (default like old code) */
-static uint8_t g_auto_display = 0;
+static uint8_t  g_layout = 1;        /* 0=QWERTY, 1=AZERTY (default like old code) */
+static uint8_t  g_auto_echo = 0;
 
-/* Modifiers/locks state in KM_* bitmask */
+/* Modifiers/locks state (ONLY KM_* bits) */
 static uint16_t g_mods = 0;
 
 /* Track 0xE0 prefix for PS/2 set1 */
@@ -64,6 +63,15 @@ static const char *tbl_norm  = sc_ascii_azerty;
 static const char *tbl_shift = sc_ascii_azerty_cap;
 
 /* =========================
+   Console echo hook (weak)
+   ========================= */
+__attribute__((weak)) void kb_console_putc(char c) {
+    extern void kprint(const char* s);
+    char b[2] = { c, 0 };
+    kprint(b);
+}
+
+/* =========================
    Helpers: buffers
    ========================= */
 static inline void push_event(const key_event_t *e) {
@@ -75,84 +83,127 @@ static inline void push_ascii(char c) {
     if (c == 0) return;
     uint16_t n = (uint16_t)((ascii_head + 1) % KEYBUF_CAP);
     if (n != ascii_tail) { ascii_buf[ascii_head] = c; ascii_head = n; }
-    if (g_auto_display) { kprint(c); }
+    if (g_auto_echo) { kb_console_putc(c); }
 }
 
 /* =========================
-   Public API impl
+   Public API (from keyboard.h)
    ========================= */
 void kbd_dispatch_event(const key_event_t* ev) {
-    /* Update global modifier/lock state based on the event */
+    /* Copy so we can annotate mods as "state after event" */
     key_event_t e = *ev;
 
-    /* Update locks on PRESS of lock keys */
+    /* Lock toggles: on PRESS of lock keys */
     if (e.type == KEY_EV_PRESS) {
         if (e.code == KC_CAPS_LOCK)   g_mods ^= KM_CAPS;
         if (e.code == KC_NUM_LOCK)    g_mods ^= KM_NUM;
         if (e.code == KC_SCROLL_LOCK) g_mods ^= KM_SCROLL;
     }
 
-    /* Update modifier bits from left/right keys */
-    uint16_t set_mask = 0, clr_mask = 0;
+    /* Side modifiers -> update KM_* bits (do NOT mix KC_* into g_mods) */
+    uint16_t side_set = 0, side_clr = 0, agg_set = 0, agg_clr = 0;
     switch (e.code) {
-        case KC_LSHIFT: set_mask = KM_SHIFT | KC_LSHIFT; break;
-        case KC_RSHIFT: set_mask = KM_SHIFT | KM_RSHIFT; break;
-        case KC_LCTRL:  set_mask = KM_CTRL  | KC_LCTRL;  break;
-        case KC_RCTRL:  set_mask = KM_CTRL  | KM_RCTRL;  break;
-        case KC_LALT:   set_mask = KM_ALT   | KC_LALT;   break;
-        case KC_RALT:   set_mask = KM_ALT   | KM_RALT;   break;
-        case KC_LGUI:   set_mask = KM_GUI   | KC_LGUI;   break;
-        case KC_RGUI:   set_mask = KM_GUI   | KM_RGUI;   break;
+        case KC_LSHIFT:  side_set = KM_SHIFT;  agg_set = KM_SHIFT;  break;
+        case KC_RSHIFT:  side_set = KM_RSHIFT; agg_set = KM_SHIFT;  break;
+        case KC_LCTRL:   side_set = KM_CTRL;   agg_set = KM_CTRL;   break;
+        case KC_RCTRL:   side_set = KM_RCTRL;  agg_set = KM_CTRL;   break;
+        case KC_LALT:    side_set = KM_ALT;    agg_set = KM_ALT;    break;
+        case KC_RALT:    side_set = KM_RALT;   agg_set = KM_ALT;    break;
+        case KC_LGUI:    side_set = KM_GUI;    agg_set = KM_GUI;    break;
+        case KC_RGUI:    side_set = KM_RGUI;   agg_set = KM_GUI;    break;
         default: break;
     }
-    if (set_mask) {
-        if (e.type == KEY_EV_PRESS)   g_mods |= set_mask;
-        if (e.type == KEY_EV_RELEASE) {
-            /* Clear the specific side; if both sides off, clear the aggregate */
-            g_mods &= ~set_mask;
-            if (!(g_mods & (KC_LSHIFT|KM_RSHIFT))) g_mods &= ~KM_SHIFT;
-            if (!(g_mods & (KC_LCTRL|KM_RCTRL)))   g_mods &= ~KM_CTRL;
-            if (!(g_mods & (KC_LALT|KM_RALT)))     g_mods &= ~KM_ALT;
-            if (!(g_mods & (KC_LGUI|KM_RGUI)))     g_mods &= ~KM_GUI;
+    if (side_set || side_clr || agg_set || agg_clr) {
+        if (e.type == KEY_EV_PRESS) {
+            g_mods |= side_set;
+            g_mods |= agg_set;
+        } else if (e.type == KEY_EV_RELEASE) {
+            /* Clear the side bit; then clear the aggregate if neither side is down */
+            g_mods &= ~side_set;
+            /* For simplicity we clear the aggregate too on release; if you later
+               track both sides independently, compute agg from sides. */
+            g_mods &= ~agg_set;
         }
     }
 
-    /* Write back the mods as the state AFTER applying the event */
+    /* mods snapshot AFTER applying this event */
     e.mods = g_mods;
 
     /* Enqueue event */
     push_event(&e);
 
-    /* If it's an ASCII printable and this is a PRESS, enqueue ascii too */
+    /* For PRESS of printable ASCII, also enqueue into char queue */
     if (e.type == KEY_EV_PRESS && e.code < 0x80) {
         push_ascii((char)e.code);
     }
 }
 
-uint16_t kbd_mods_state(void) {
-    return g_mods;
-}
+uint16_t kbd_mods_state(void) { return g_mods; }
 
 void kbd_set_lock_leds(uint8_t caps, uint8_t num, uint8_t scroll) {
     if (caps)   g_mods |= KM_CAPS;   else g_mods &= ~KM_CAPS;
     if (num)    g_mods |= KM_NUM;    else g_mods &= ~KM_NUM;
     if (scroll) g_mods |= KM_SCROLL; else g_mods &= ~KM_SCROLL;
-    /* TODO: send to PS/2 controller and/or USB HID output report when you wire that up */
+    /* TODO: actually signal LEDs to PS/2 controller / USB HID OUT report */
 }
 
+/* Lifecycle / options */
+void kbd_subsystem_init(void) {
+    ev_head = ev_tail = ascii_head = ascii_tail = 0;
+    g_mods = 0; g_ps2_e0 = 0;
+    /* default layout */
+    if (g_layout == 0) { tbl_norm = sc_ascii_qwerty; tbl_shift = sc_ascii_qwerty_cap; }
+    else               { tbl_norm = sc_ascii_azerty; tbl_shift = sc_ascii_azerty_cap; }
+}
+
+void kbd_set_layout(uint8_t layout) {
+    g_layout = layout ? 1 : 0;
+    if (g_layout == 0) { tbl_norm = sc_ascii_qwerty; tbl_shift = sc_ascii_qwerty_cap; }
+    else               { tbl_norm = sc_ascii_azerty; tbl_shift = sc_ascii_azerty_cap; }
+}
+
+void kbd_enable_auto_echo(int on) { g_auto_echo = on ? 1 : 0; }
+
+/* Simple char I/O */
+int  kbd_has_char(void) { return ascii_head != ascii_tail; }
+
+char kbd_read_char(void) {
+    if (ascii_head == ascii_tail) return 0;
+    char c = ascii_buf[ascii_tail];
+    ascii_tail = (uint16_t)((ascii_tail + 1) % KEYBUF_CAP);
+    return c;
+}
+
+char kbd_getchar_blocking(void) {
+    for (;;) {
+        char c = kbd_read_char();
+        if (c) return c;
+        __asm__ __volatile__("hlt");
+    }
+}
+
+/* Raw event I/O */
+int  kbd_read_event(key_event_t *ev) {
+    if (ev_head == ev_tail) return 0;
+    *ev = ev_buf[ev_tail];
+    ev_tail = (uint16_t)((ev_tail + 1) % KEYBUF_CAP);
+    return 1;
+}
+
+/* =========================
+   Device (de)registration
+   ========================= */
 static void ps2_irq1_handler(registers_t *r);
 
-/* Return logical id: 0 for PS/2, 1..N for USB */
 uint8_t kbd_register_device(kbd_source_t src, uint8_t hw_id) {
     (void)hw_id;
-
     if (src == KDEV_SOURCE_PS2) {
-        if (g_ps2_registered) return 0;          /* already registered */
+        if (g_ps2_registered) return 0;
         register_interrupt_handler(IRQ1, ps2_irq1_handler);
         g_ps2_registered = 1;
-        return 0;                                 /* PS/2 logical id is 0 */
+        return 0; /* PS/2 logical id is 0 */
     } else {
-        /* USB logical ids start at 1 */
+        /* USB logical ids start at 1, the USB layer keeps details */
         uint8_t id = g_usb_next_id++;
         return id;
     }
@@ -161,42 +212,10 @@ uint8_t kbd_register_device(kbd_source_t src, uint8_t hw_id) {
 void kbd_unregister_device(uint8_t logical_id) {
     if (logical_id == 0) {
         g_ps2_registered = 0;
-        /* You might want to mask IRQ1 in PIC, but leave as-is for now */
+        /* You could also mask IRQ1 if you want */
     } else {
-        /* For USB you’ll free in your USB layer; nothing global to do here */
+        /* USB devices are handled in USB layer */
     }
-}
-
-/* =========================
-   Optional convenience (not in header)
-   ========================= */
-void keyboard_set_layout(uint8_t layout_id) {
-    g_layout = layout_id ? 1 : 0;
-    if (g_layout == 0) { tbl_norm = sc_ascii_qwerty; tbl_shift = sc_ascii_qwerty_cap; }
-    else               { tbl_norm = sc_ascii_azerty; tbl_shift = sc_ascii_azerty_cap; }
-}
-
-void keyboard_set_auto_display(uint8_t on) { g_auto_display = on ? 1 : 0; }
-
-int keyboard_has_char(void) { return ascii_head != ascii_tail; }
-
-char keyboard_read_char(void) {
-    if (ascii_head == ascii_tail) return 0;
-    char c = ascii_buf[ascii_tail];
-    ascii_tail = (uint16_t)((ascii_tail + 1) % KEYBUF_CAP);
-    return c;
-}
-
-int keyboard_read_event(key_event_t *ev) {
-    if (ev_head == ev_tail) return 0;
-    *ev = ev_buf[ev_tail];
-    ev_tail = (uint16_t)((ev_tail + 1) % KEYBUF_CAP);
-    return 1;
-}
-
-void keyboard_unregister_all(void) {
-    ev_head = ev_tail = ascii_head = ascii_tail = 0;
-    g_mods = 0; g_ps2_e0 = 0;
 }
 
 /* =========================
@@ -226,21 +245,18 @@ static keycode_t ps2_e0_to_ext(uint8_t raw) {
         case 0x4F: return KC_END;
         case 0x49: return KC_PGUP;
         case 0x51: return KC_PGDN;
-        /* You can add E0 variants of Ctrl/Alt/GUI etc later */
         default:   return KC_NONE;
     }
 }
 
 static inline char translate_ps2_ascii(uint8_t raw) {
-    /* raw is make scancode without 0x80 */
     if (raw == SC_BACKSPACE) return '\b';
     if (raw == SC_TAB)       return '\t';
     if (raw == SC_ENTER)     return '\n';
     if (raw == 0x39)         return ' '; /* space */
 
-    /* Old tables expected raw index < ~0x40; guard access */
     if (raw < 0x40) {
-        const char *tbl = (g_mods & KM_CAPS) ^ (g_mods & KM_SHIFT) ? tbl_shift : tbl_norm;
+        const char *tbl = ((g_mods & KM_CAPS) ^ (g_mods & KM_SHIFT)) ? tbl_shift : tbl_norm;
         char c = tbl[raw];
         return (c == '?') ? 0 : c;
     }
@@ -252,25 +268,25 @@ static void emit_ps2_event(uint8_t raw, bool make) {
     e.src    = KDEV_SOURCE_PS2;
     e.dev_id = 0;
 
-    /* Modifiers / locks to extended KC_* on press/release */
+    /* Map common keys to extended KC_* for PRESS/RELEASE */
     keycode_t code = KC_NONE;
     switch (raw) {
-        case SC_LSHIFT: code = KC_LSHIFT; break;
-        case SC_RSHIFT: code = KC_RSHIFT; break;
-        case SC_LCTRL:  code = KC_LCTRL;  break;
-        case SC_LALT:   code = KC_LALT;   break;
+        case SC_LSHIFT:   code = KC_LSHIFT; break;
+        case SC_RSHIFT:   code = KC_RSHIFT; break;
+        case SC_LCTRL:    code = KC_LCTRL;  break;
+        case SC_LALT:     code = KC_LALT;   break;
         case SC_CAPSLOCK: code = KC_CAPS_LOCK; break;
-        case SC_BACKSPACE: code = KC_BACKSPACE; break;
-        case SC_TAB:       code = KC_TAB; break;
-        case SC_ENTER:     code = KC_ENTER; break;
-        case SC_ESC:       code = KC_ESC; break;
+        case SC_BACKSPACE:code = KC_BACKSPACE; break;
+        case SC_TAB:      code = KC_TAB; break;
+        case SC_ENTER:    code = KC_ENTER; break;
+        case SC_ESC:      code = KC_ESC; break;
         default: break;
     }
 
     if (code != KC_NONE) {
         e.type = make ? KEY_EV_PRESS : KEY_EV_RELEASE;
         e.code = code;
-        e.mods = g_mods; /* kbd_dispatch_event will update */
+        e.mods = g_mods;
         kbd_dispatch_event(&e);
         return;
     }
@@ -284,14 +300,11 @@ static void emit_ps2_event(uint8_t raw, bool make) {
             e.mods = g_mods;
             kbd_dispatch_event(&e);
         }
-    } else {
-        /* Non-modifier key release: send release if you want full key up events for ASCII keys
-           Here we skip releases for plain ASCII to keep it simple */
     }
 }
 
-/* Public ISR forwarder for IRQ1 (declared in kbd_register_device) */
-void ps2_irq1_handler(registers_t *regs) {
+/* IRQ1 forwarder (PS/2) */
+static void ps2_irq1_handler(registers_t *regs) {
     (void)regs;
     uint8_t sc = port_byte_in(0x60);
 
@@ -314,24 +327,24 @@ void ps2_irq1_handler(registers_t *regs) {
             kbd_dispatch_event(&e);
             return;
         }
-        /* fall through to normal handling if unknown E0 code */
+        /* else: unknown E0 code -> fall through */
     }
 
-    /* Maintain modifier bits immediately so ASCII translation uses current state */
+    /* Maintain modifier bits ASAP so ASCII uses correct state */
     if (raw == SC_LSHIFT) {
-        if (break_code) g_mods &= ~(KC_LSHIFT|KM_SHIFT);
-        else            g_mods |=  (KC_LSHIFT|KM_SHIFT);
+        if (break_code) g_mods &= ~KM_SHIFT;
+        else            g_mods |=  KM_SHIFT;
     } else if (raw == SC_RSHIFT) {
-        if (break_code) g_mods &= ~(KM_RSHIFT|KM_SHIFT);
-        else            g_mods |=  (KM_RSHIFT|KM_SHIFT);
+        if (break_code) g_mods &= ~KM_RSHIFT, g_mods &= ~KM_SHIFT; /* simple aggregate */
+        else            g_mods |=  KM_RSHIFT, g_mods |=  KM_SHIFT;
     } else if (raw == SC_LCTRL) {
-        if (break_code) g_mods &= ~(KC_LCTRL|KM_CTRL);
-        else            g_mods |=  (KC_LCTRL|KM_CTRL);
+        if (break_code) g_mods &= ~KM_CTRL;
+        else            g_mods |=  KM_CTRL;
     } else if (raw == SC_LALT) {
-        if (break_code) g_mods &= ~(KC_LALT|KM_ALT);
-        else            g_mods |=  (KC_LALT|KM_ALT);
+        if (break_code) g_mods &= ~KM_ALT;
+        else            g_mods |=  KM_ALT;
     } else if (raw == SC_CAPSLOCK && !break_code) {
-        /* Toggle happens in kbd_dispatch_event on PRESS, but we want ASCII to see it too. */
+        /* Toggle happens in dispatcher, but we want ASCII to reflect immediately */
         g_mods ^= KM_CAPS;
     }
 
@@ -339,8 +352,7 @@ void ps2_irq1_handler(registers_t *regs) {
 }
 
 /* =========================
-   Glue for USB module (compat)
+   Glue for USB module
    ========================= */
 void keyboard_internal_push_event_alias(const key_event_t* e) { kbd_dispatch_event(e); }
 void keyboard_internal_push_ascii_alias(char c)               { if (c) push_ascii(c); }
-

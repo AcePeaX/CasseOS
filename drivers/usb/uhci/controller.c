@@ -96,7 +96,6 @@ bool uhci_initialize_controller(usb_controller_t *controller)
         UHCI_ERR("Failed to start UHCI controller\n");
         return false;
     }
-
     uhci_install_isr(controller);
 
     UHCI_INFO("UHCI Controller initialized at IO base 0x%x\n", io_base);
