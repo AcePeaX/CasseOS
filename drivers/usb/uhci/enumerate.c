@@ -222,11 +222,16 @@ void uhci_enumerate_device(uint16_t io_base, int port)
     const usb_interface_descriptor_t *ifs = &dev->interface_descriptor;
     const usb_endpoint_descriptor_t  *ep  = &dev->endpoint_descriptors[0];
 
-    UNUSED(ep);
-
     int is_hid_kbd = (ifs->interface_class == USB_CLASS_HID) &&
-                     (ifs->interface_subclass == USB_SUBCLASS_BOOT) &&
-                     (ifs->interface_protocol == USB_PROTOCOL_KEYBOARD);
+                        (ifs->interface_subclass == USB_SUBCLASS_BOOT) &&
+                        (ifs->interface_protocol == USB_PROTOCOL_KEYBOARD);
+
+    if(is_hid_kbd){
+        int idx = keyboard_register_usb_boot_keyboard(dev->address,
+                    ep->endpoint_address,
+                    ep->interval,
+                    ep->max_packet_size);
+    }
 
     UHCI_INFO("\n");
     UHCI_INFO("=== USB device on port %d ===\n", port);
@@ -239,12 +244,12 @@ void uhci_enumerate_device(uint16_t io_base, int port)
     UHCI_INFO("  Attributes         : 0x%x\n", (unsigned)dev->config_descriptor.attributes);
     UHCI_INFO("  Max power (2mA)    : %u\n",  (unsigned)dev->config_descriptor.max_power);
     UHCI_INFO("  Chosen IF          : num=%u alt=%u class=0x%x subcls=0x%x proto=0x%x\n",
-              (unsigned)ifs->interface_number, (unsigned)ifs->alternate_setting,
-              (unsigned)ifs->interface_class, (unsigned)ifs->interface_subclass, (unsigned)ifs->interface_protocol);
+                (unsigned)ifs->interface_number, (unsigned)ifs->alternate_setting,
+                (unsigned)ifs->interface_class, (unsigned)ifs->interface_subclass, (unsigned)ifs->interface_protocol);
     UHCI_INFO("  HID Boot Keyboard  : %s\n", is_hid_kbd ? "yes" : "no");
     UHCI_INFO("  INT IN endpoint    : addr=0x%x  (ep=%u, %s)\n",
-              (unsigned)ep->endpoint_address, (unsigned)(ep->endpoint_address & 0x0F),
-              (ep->endpoint_address & 0x80) ? "IN" : "OUT");
+                (unsigned)ep->endpoint_address, (unsigned)(ep->endpoint_address & 0x0F),
+                (ep->endpoint_address & 0x80) ? "IN" : "OUT");
     UHCI_INFO("    type(attr)       : 0x%x  (expect 0x3 for interrupt)\n", (unsigned)ep->attributes);
     UHCI_INFO("    wMaxPacketSize   : %u\n", (unsigned)ep->max_packet_size);
     UHCI_INFO("    bInterval (ms)   : %u\n", (unsigned)ep->interval);
