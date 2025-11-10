@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 void int_to_ascii(int n, char str[]);
+void uint_to_ascii(unsigned int value, char *str);
 void reverse(char s[]);
 int strlen(char s[]);
 void backspace(char s[]);

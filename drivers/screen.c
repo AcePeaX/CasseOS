@@ -181,6 +181,14 @@ void printf(const char *format, ...) {
                     }
                     break;
                 }
+                case 'u': {
+                    unsigned int value = va_arg(args, unsigned int);
+                    char uint_buffer[16];
+                    uint_to_ascii(value, uint_buffer);  // ← you'll need this small helper
+                    for (int j = 0; uint_buffer[j] != '\0'; j++)
+                        buffer[buffer_index++] = uint_buffer[j];
+                    break;
+                }
                 case 'x': { // Hexadecimal
                     uint64_t value = va_arg(args, uint64_t);
                     char hex_buffer[17];

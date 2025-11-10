@@ -17,6 +17,32 @@ void int_to_ascii(int n, char str[]) {
     reverse(str);
 }
 
+void uint_to_ascii(unsigned int value, char *str) {
+    char temp[16];
+    int i = 0;
+
+    // Handle 0 explicitly
+    if (value == 0) {
+        str[0] = '0';
+        str[1] = '\0';
+        return;
+    }
+
+    // Convert number to string in reverse
+    while (value > 0) {
+        temp[i++] = '0' + (value % 10u);
+        value /= 10u;
+    }
+
+    // Reverse the string
+    int j = 0;
+    while (i > 0) {
+        str[j++] = temp[--i];
+    }
+    str[j] = '\0';
+}
+
+
 void hex_to_string(uint64_t value, char* buffer) {
     const char* hex_digits = "0123456789ABCDEF";
     int i;
