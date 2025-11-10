@@ -1,6 +1,6 @@
 #include "mem.h"
 
-void memory_copy(uint8_t *source, uint8_t *dest, size_t nbytes) {
+void memory_copy(uint8_t *dest, uint8_t *source, size_t nbytes) {
     size_t i;
     for (i = 0; i < nbytes; i++) {
         *(dest + i) = *(source + i);
