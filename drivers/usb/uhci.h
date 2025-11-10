@@ -15,6 +15,31 @@
 #define UHCI_TD_STATUS_ACTIVE (1 << 23)
 
 
+// ==== Logging levels ====
+#define UHCI_LOG_NONE   0
+#define UHCI_LOG_ERROR  1
+#define UHCI_LOG_WARN   2
+#define UHCI_LOG_INFO   3
+#define UHCI_LOG_DEBUG  4
+#define UHCI_LOG_TRACE  5
+
+// ==== Select current verbosity here ====
+#ifndef UHCI_LOG_LEVEL
+#define UHCI_LOG_LEVEL UHCI_LOG_WARN   // default
+#endif
+
+// ==== Macros ====
+#define UHCI_PRINT(level, fmt, ...) \
+    do { if ((level) <= UHCI_LOG_LEVEL) printf(fmt, ##__VA_ARGS__); } while (0)
+
+#define UHCI_ERR(fmt, ...)   UHCI_PRINT(UHCI_LOG_ERROR, "[UHCI:ERR] " fmt, ##__VA_ARGS__)
+#define UHCI_WARN(fmt, ...)  UHCI_PRINT(UHCI_LOG_WARN,  "[UHCI:WARN] " fmt, ##__VA_ARGS__)
+#define UHCI_INFO(fmt, ...)  UHCI_PRINT(UHCI_LOG_INFO,  "[UHCI:INFO] " fmt, ##__VA_ARGS__)
+#define UHCI_DBG(fmt, ...)   UHCI_PRINT(UHCI_LOG_DEBUG, "[UHCI:DBG]  " fmt, ##__VA_ARGS__)
+#define UHCI_TRACE(fmt, ...) UHCI_PRINT(UHCI_LOG_TRACE, "[UHCI:TRC]  " fmt, ##__VA_ARGS__)
+
+
+
 typedef struct {
     uint32_t link_pointer;
     uint32_t control_status;

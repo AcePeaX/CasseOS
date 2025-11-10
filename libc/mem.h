@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-void memory_copy(uint8_t *dest, uint8_t *source, size_t nbytes);
+void memory_copy(void *dest, const void *source, size_t nbytes);
 void* memory_set(void *dest, uint8_t val, size_t len);
 
 /* At this stage there is no 'free' implemented. */
