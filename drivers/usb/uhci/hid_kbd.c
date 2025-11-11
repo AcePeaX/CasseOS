@@ -8,6 +8,15 @@
 #define TD_IOC      (1u << 24)   // raise IRQ on completion
 #define TD_SPD      (1u << 29)   // Short Packet Detect (recommended for IN)
 
+#define TD_STALLED  (1u << 22)
+#define TD_DBE      (1u << 21)
+#define TD_BABBLE   (1u << 20)
+#define TD_NAK      (1u << 19)
+#define TD_TIMEOUT  (1u << 18)
+#define TD_BITSTUFF (1u << 17)
+#define TD_ERR_MASK (TD_STALLED | TD_DBE | TD_BABBLE | TD_TIMEOUT | TD_BITSTUFF)
+#define TD_ACTLEN_MASK 0x7FF
+
 typedef struct {
     uint8_t      in_use;
     uint16_t     io_base;
@@ -66,6 +75,20 @@ static void place_qh_every_interval(uhci_kbd_pipe_t *p)
     }
 }
 
+static void uhci_kbd_rearm_td(uhci_kbd_pipe_t *p, bool advance_toggle)
+{
+    if (advance_toggle) {
+        p->toggle ^= 1;
+    }
+
+    p->td->token = uhci_build_in_token(p->dev_addr, p->ep, p->toggle, 8);
+    p->td->control_status  = TD_ACTLEN_MASK;
+    p->td->control_status |= TD_SPD | TD_IOC | TD_ACTIVE;
+    p->qh->vertical_link_pointer = get_physical_address(p->td);
+
+    __asm__ __volatile__("" ::: "memory");
+}
+
 int uhci_kbd_open_interrupt_in(uint16_t io_base,
                                 uint8_t dev_addr,
                                 uint8_t endpoint_address,
@@ -98,10 +121,9 @@ int uhci_kbd_open_interrupt_in(uint16_t io_base,
             memory_set(p->qh, 0, sizeof(*p->qh));
 
             // TD
-            p->td->link_pointer  = 0x00000001; // terminate
-            p->td->control_status= TD_ACTIVE | TD_IOC | TD_SPD;   // Active
-            p->td->token         = uhci_build_in_token(p->dev_addr, p->ep, p->toggle, 8);
-            p->td->buffer_pointer= get_physical_address(p->buf);
+            p->td->link_pointer   = 0x00000001; // terminate
+            p->td->buffer_pointer = get_physical_address(p->buf);
+            uhci_kbd_rearm_td(p, false);
 
             // QH
             p->qh->horizontal_link_pointer = 0x00000001; // terminate
@@ -154,42 +176,28 @@ void uhci_kbd_service(void)
         if (!p->in_use) continue;
 
         uhci_td_t *td = p->td;
+        uint32_t cs = td->control_status;
 
         // Active bit is bit 23 (0x800000) in your code. If Active is still set, not done yet.
-        if (td->control_status & 0x800000) continue;  // bit23 ACTIVE
+        if (cs & TD_ACTIVE) continue;  // bit23 ACTIVE
 
-        // Check for errors (same masks you use elsewhere)
-        if (td->control_status & (1 << 22)) {
-            // Stalled; you may want to clear/abort or try to recover.
-            // For now, just re-arm.
+        // NAK (no new data): just re-arm without toggling so DATA sync stays valid.
+        if (cs & TD_NAK) {
+            uhci_kbd_rearm_td(p, false);
+            continue;
+        }
+
+        // Any other error (stall, babble, etc.): warn once and re-arm without consuming data.
+        if (cs & TD_ERR_MASK) {
+            UHCI_WARN("UHCI KBD TD error (cs=0x%x)\n", cs);
+            uhci_kbd_rearm_td(p, false);
+            continue;
         }
 
         // We have a fresh 8-byte report in p->buf
         keyboard_usb_on_boot_report(p->dev_index, p->buf);
 
-        printf("TD done: cs=%x tok=%x buf=%x\n", td->control_status, td->token, p->buf);
-        for (int i=0;i<8;i++) printf("%x ", p->buf[i]); printf("\n");
-
-
-        // Re-arm: toggle data toggle, set Active, keep same buffer
-        p->toggle ^= 1;
-        td->token = uhci_build_in_token(p->dev_addr, p->ep, p->toggle, 8);
-        
-        // Low 11 bits: Actual Length = 0x7FF (required by UHCI when arming)
-        // Clear any HC-written status bits; then set SPD/IOC/ACTIVE.
-        td->control_status = 0;
-        td->control_status |= 0x000007FF;   // ActualLength = 0x7FF
-        td->control_status |= TD_SPD;       // Short Packet Detect
-        td->control_status |= TD_IOC;       // Interrupt on complete
-        td->control_status |= TD_ACTIVE;    // Re-activate
-
-        // Make sure the HC sees these writes before the next frame.
-        __asm__ __volatile__ ("" ::: "memory");
-
-
-        printf("TD rearmed: cs=%x tok=%x buf=%x\n", td->control_status, td->token, p->buf);
-        for (int i=0;i<8;i++) printf("%x ", p->buf[i]); printf("\n");
-        
-        printf("KBD Services!\n");
+        // Re-arm for next poll, only toggling when we consumed real data.
+        uhci_kbd_rearm_td(p, true);
     }
 }
