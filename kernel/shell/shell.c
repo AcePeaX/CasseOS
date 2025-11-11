@@ -19,8 +19,8 @@ extern char key_buffer;
 void shell_main_loop(){
     if(start){
         kprint("Welcome to CasseOS Shell!\n>");
-        flush_command_line();
         init_command_line(get_cursor_offset()/2);
+        flush_command_line(command);
         start = false;
     }
     if(end_command){
@@ -37,19 +37,14 @@ void shell_main_loop(){
         }
         kprint(">");
         end_command = false;
-        flush_command_line();
         init_command_line(get_cursor_offset()/2);
+        flush_command_line(command);
     }
-    uint8_t scancode;
     key_event_t ev;
     //printf("Check\n");
     while (kbd_read_event(&ev)) {
         if (ev.type == KEY_EV_PRESS) {
-            printf("Clicked: %d\n", ev.code);
             end_command = handle_command_line(ev.code,command);
         }
     }
-    /*if((scancode = keyboard_buffer_pop())){
-        end_command = handle_command_line(scancode,command);
-    }*/
 }

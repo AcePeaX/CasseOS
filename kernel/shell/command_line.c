@@ -3,92 +3,121 @@
 #include "drivers/screen.h"
 #include "libc/string.h"
 
-int cmd_start_offset = 0;
-uint16_t cmd_cursor = 0;
-uint16_t cmd_len = 0;
+static int cmd_start_offset = 0;
+static uint16_t cmd_cursor = 0;
+static uint16_t cmd_len = 0;
+
+static void refresh_command_visual(const char *command, uint16_t previous_len)
+{
+    int base_offset = cmd_start_offset * 2;
+    int row = get_vga_offset_row(base_offset);
+    int col = get_vga_offset_col(base_offset);
+    kprint_at(command, col, row);
+
+    if (previous_len > cmd_len) {
+        int blank_offset = (cmd_start_offset + cmd_len) * 2;
+        for (uint16_t i = cmd_len; i < previous_len; ++i) {
+            int blank_row = get_vga_offset_row(blank_offset);
+            int blank_col = get_vga_offset_col(blank_offset);
+            kprint_at(" ", blank_col, blank_row);
+            blank_offset += 2;
+        }
+    }
+
+    set_cursor_offset((cmd_start_offset + cmd_cursor) * 2);
+}
 
 void init_command_line(int start_offset){
     cmd_start_offset = start_offset;
 }
 
-bool handle_command_line(uint8_t scancode, char* command){
-    /*char s[10];
-    int_to_ascii(scancode, s);
-    kprint(s);
-    kprint("\n");
-    return true;*/
-    /*if(scancode==KB_ENTER){
+static void delete_at(char* command, uint16_t position)
+{
+    for (uint16_t i = position; i < cmd_len; ++i) {
+        command[i] = command[i + 1];
+    }
+}
+
+static void insert_at(char *command, uint16_t position, char c)
+{
+    for (int i = cmd_len; i > position; --i) {
+        command[i] = command[i - 1];
+    }
+    command[position] = c;
+}
+
+bool handle_command_line(keycode_t code, char* command){
+    if (!command) return false;
+
+    if (code == KC_ENTER) {
+        command[cmd_len] = '\0';
         return true;
     }
-    else if(scancode==KB_BACKSPACE){
-        if(cmd_cursor>0){
-            kprint_backspace();
-            if(cmd_cursor!=cmd_len){
-                for(int i=cmd_cursor-1; i<cmd_len+1; i++){
-                    command[i] = command[i+1];
-                }
-                int offset = (cmd_cursor+cmd_start_offset)*2-1;
-                int row = get_vga_offset_row(offset);
-                int col = get_vga_offset_col(offset);
-                command[cmd_len-1] = ' ';
-                kprint_at(command+cmd_cursor-1,col,row);
-                command[cmd_len-1] = 0;
-            }
+
+    uint16_t prev_len = cmd_len;
+
+    if (code == KC_BACKSPACE) {
+        if (cmd_cursor > 0) {
             cmd_cursor--;
-            cmd_len--;
+            delete_at(command, cmd_cursor);
+            if (cmd_len > 0) cmd_len--;
+            refresh_command_visual(command, prev_len);
         }
-    } else if(scancode==KB_DEL){
-        if(cmd_cursor<cmd_len){
-            for(int i=cmd_cursor; i<cmd_len+1; i++){
-                command[i] = command[i+1];
-            }
-            int offset = (cmd_cursor+cmd_start_offset)*2-1;
-            int row = get_vga_offset_row(offset);
-            int col = get_vga_offset_col(offset);
-            command[cmd_len-1] = ' ';
-            kprint_at(command+cmd_cursor-1,col,row);
-            command[cmd_len-1] = 0;
-            cmd_len--;
-        }
-    } else if(scancode==KB_ARROW_LEFT){
-        if(cmd_cursor>0){cmd_cursor--;}
-    } else if(scancode==KB_ARROW_RIGHT){
-        cmd_cursor++;
-        if(cmd_cursor>cmd_len){cmd_cursor=cmd_len;}
+        return false;
     }
-    else{
-        if(cmd_len==MAX_COMMAND_LENGTH){
+
+    if (code == KC_DELETE) {
+        if (cmd_cursor < cmd_len) {
+            delete_at(command, cmd_cursor);
+            if (cmd_len > 0) cmd_len--;
+            refresh_command_visual(command, prev_len);
+        }
+        return false;
+    }
+
+    if (code == KC_LEFT) {
+        if (cmd_cursor > 0) cmd_cursor--;
+        set_cursor_offset((cmd_start_offset + cmd_cursor) * 2);
+        return false;
+    }
+
+    if (code == KC_RIGHT) {
+        if (cmd_cursor < cmd_len) cmd_cursor++;
+        set_cursor_offset((cmd_start_offset + cmd_cursor) * 2);
+        return false;
+    }
+
+    if (code == KC_HOME) {
+        cmd_cursor = 0;
+        set_cursor_offset((cmd_start_offset + cmd_cursor) * 2);
+        return false;
+    }
+
+    if (code == KC_END) {
+        cmd_cursor = cmd_len;
+        set_cursor_offset((cmd_start_offset + cmd_cursor) * 2);
+        return false;
+    }
+
+    if (code >= 0x20 && code < 0x7F) {
+        if (cmd_len >= (MAX_COMMAND_LENGTH - 1)) {
             return false;
         }
-        char c = keyboard_get_ascii_from_scancode(scancode);
-        if(c!=0){
-            if(cmd_cursor!=cmd_len){
-                for(int i=cmd_len-1; i>=cmd_cursor; i--){
-                    command[i+1] = command[i];
-                }
-            }
-            command[cmd_len+1] = 0;
-            command[cmd_cursor] = c;
-            int offset = (cmd_cursor+cmd_start_offset)*2;
-            int row = get_vga_offset_row(offset);
-            int col = get_vga_offset_col(offset);
-            if(cmd_cursor!=cmd_len){
-                kprint_at(command+cmd_cursor,col,row);
-            }
-            else{
-                char c_str[2] = "";
-                c_str[0] = c;
-                kprint_at(c_str, col, row);
-            }
-            cmd_cursor++;
-            cmd_len++;
-        }
+        insert_at(command, cmd_cursor, (char)code);
+        cmd_len++;
+        command[cmd_len] = '\0';
+        cmd_cursor++;
+        refresh_command_visual(command, prev_len);
     }
-    set_cursor_offset((cmd_cursor+cmd_start_offset)*2);
-    */
+
     return false;
 }
-void flush_command_line(){
+
+void flush_command_line(char* command){
     cmd_cursor = 0;
     cmd_len = 0;
+    if (command) {
+        command[0] = '\0';
+    }
+    set_cursor_offset(cmd_start_offset * 2);
 }
