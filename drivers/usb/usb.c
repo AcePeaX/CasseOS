@@ -66,19 +66,19 @@ void usb_enumerate_devices() {
 
         
         if(controller->pci_device->prog_if==0x00){
-            printf("The current controller is of type: UHCI\n");
+            USB_LOG_INFO("The current controller is of type: UHCI\n");
             uhci_initialize_controller(controller);
             uhci_enumerate_devices(controller);
             //sleep_ms(3000);
         } else if(controller->pci_device->prog_if==0x10){
-            printf("USB driver for OHCI not yet available.\n");
+            USB_LOG_WARN("USB driver for OHCI not yet available.\n");
         } else if(controller->pci_device->prog_if==0x20){
-            printf("USB driver for EHCI not yet available.\n");
+            USB_LOG_WARN("USB driver for EHCI not yet available.\n");
         } else if(controller->pci_device->prog_if==0x30){
-            printf("USB driver for xHCI not yet available.\n");
+            USB_LOG_WARN("USB driver for xHCI not yet available.\n");
         }
         else{
-            printf("USB controller %d not recognized.\n", i);
+            USB_LOG_ERROR("USB controller %d not recognized.\n", i);
         }
 
     }

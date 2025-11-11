@@ -5,60 +5,28 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-/*
- * Log levels:
- *   0 = none
- *   1 = error only
- *   2 = + warnings
- *   3 = + info
- *   4 = + debug
- *   5 = + trace (everything)
- */
+// Descriptors & base USB helpers
+#include "../usb.h"
+#include "drivers/pci.h"
+#include "../usb_descriptors.h"
+
 #ifndef UHCI_LOG_LEVEL
-#define UHCI_LOG_LEVEL 2   // <- change this one value to control verbosity
+#define UHCI_LOG_LEVEL USB_LOG_LEVEL_WARN
 #endif
 
-// --- Macro definitions ---
-#if UHCI_LOG_LEVEL >= 1
-#  define UHCI_ERR(fmt, ...)  printf("[UHCI][ERR] " fmt, ##__VA_ARGS__)
-#else
-#  define UHCI_ERR(fmt, ...)  ((void)0)
-#endif
+#define UHCI_LOG(level, tag, fmt, ...) \
+    USB_SUBSYS_LOG(level, UHCI_LOG_LEVEL, "[UHCI]", tag, fmt, ##__VA_ARGS__)
 
-#if UHCI_LOG_LEVEL >= 2
-#  define UHCI_WARN(fmt, ...) printf("[UHCI][WRN] " fmt, ##__VA_ARGS__)
-#else
-#  define UHCI_WARN(fmt, ...) ((void)0)
-#endif
-
-#if UHCI_LOG_LEVEL >= 3
-#  define UHCI_INFO(fmt, ...) printf("[UHCI][INF] " fmt, ##__VA_ARGS__)
-#else
-#  define UHCI_INFO(fmt, ...) ((void)0)
-#endif
-
-#if UHCI_LOG_LEVEL >= 4
-#  define   (fmt, ...)  printf("[UHCI][DBG] " fmt, ##__VA_ARGS__)
-#else
-#  define UHCI_DBG(fmt, ...)  ((void)0)
-#endif
-
-#if UHCI_LOG_LEVEL >= 5
-#  define UHCI_TRACE(fmt, ...) printf("[UHCI][TRC] " fmt, ##__VA_ARGS__)
-#else
-#  define UHCI_TRACE(fmt, ...) ((void)0)
-#endif
+#define UHCI_ERR(fmt, ...)   UHCI_LOG(USB_LOG_LEVEL_ERROR, "[ERR]", fmt, ##__VA_ARGS__)
+#define UHCI_WARN(fmt, ...)  UHCI_LOG(USB_LOG_LEVEL_WARN,  "[WRN]", fmt, ##__VA_ARGS__)
+#define UHCI_INFO(fmt, ...)  UHCI_LOG(USB_LOG_LEVEL_INFO,  "[INF]", fmt, ##__VA_ARGS__)
+#define UHCI_DBG(fmt, ...)   UHCI_LOG(USB_LOG_LEVEL_DEBUG, "[DBG]", fmt, ##__VA_ARGS__)
+#define UHCI_TRACE(fmt, ...) UHCI_LOG(USB_LOG_LEVEL_TRACE, "[TRC]", fmt, ##__VA_ARGS__)
 
 // ---- Handy macros ----
 #ifndef UNUSED
 #define UNUSED(x) (void)(x)
 #endif
-
-
-// Descriptors live in your existing header:
-#include "../usb.h"
-#include "drivers/pci.h"
-#include "../usb_descriptors.h"
 
 // ---- UHCI I/O register offsets & bits (you said you already added them) ----
 // Keep only if not already defined in your project-wide uhci header.
