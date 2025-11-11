@@ -1,14 +1,16 @@
-#include "../drivers/screen.h"
-#include "../libc/string.h"
+#include "libc/string.h"
+#include "libc/system.h"
+#include "cpu/type.h"
 #include "cpu/isr.h"
 #include "cpu/idt.h"
-#include "../libc/system.h"
-#include "../cpu/timer.h"
-#include "../drivers/keyboard/keyboard.h"
+#include "cpu/timer.h"
+#include "drivers/screen.h"
+#include "drivers/keyboard/keyboard.h"
 #include "shell/shell.h"
 #include "drivers/pci.h"
 
 void kernel_main() {
+    cpu_enable_fpu_sse();
     isr_install();
     irq_install();
     clear_screen();
@@ -23,4 +25,3 @@ void kernel_main() {
     }
 }
 
-//extern uint8_t keyboard_auto_display;

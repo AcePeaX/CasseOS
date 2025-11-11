@@ -154,6 +154,8 @@ void kbd_subsystem_init(void) {
     /* default layout */
     if (g_layout == 0) { tbl_norm = sc_ascii_qwerty; tbl_shift = sc_ascii_qwerty_cap; }
     else               { tbl_norm = sc_ascii_azerty; tbl_shift = sc_ascii_azerty_cap; }
+
+    kbd_register_device(KDEV_SOURCE_PS2, 0);
 }
 
 void kbd_set_layout(uint8_t layout) {
