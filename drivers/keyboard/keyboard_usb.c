@@ -33,10 +33,10 @@ static usb_keyboard_device_t g_kbds[MAX_USB_KEYBOARDS];
 static inline uint16_t mods_from_hid(uint8_t m)
 {
     uint16_t mods = 0;
-    if (m & (1<<0)) mods |= KC_LCTRL;
-    if (m & (1<<1)) mods |= KC_LSHIFT;
-    if (m & (1<<2)) mods |= KC_LALT;
-    if (m & (1<<3)) mods |= KC_LGUI;
+    if (m & (1<<0)) mods |= KM_CTRL;
+    if (m & (1<<1)) mods |= KM_SHIFT;
+    if (m & (1<<2)) mods |= KM_ALT;
+    if (m & (1<<3)) mods |= KM_GUI;
     if (m & (1<<4)) mods |= KM_RCTRL;
     if (m & (1<<5)) mods |= KM_RSHIFT;
     if (m & (1<<6)) mods |= KM_RALT;

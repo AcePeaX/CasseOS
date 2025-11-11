@@ -21,7 +21,7 @@ static inline uint8_t irq_to_vector(uint8_t irq_line) { return (uint8_t)(IRQ0 + 
 /* --- Top-half ISR (keep it very fast) --- */
 static void uhci_irq_top(registers_t* r)
 {
-    printf("IRQ Execute!\n");
+    printf("IRQ KBD Execute!\n");
     (void)r;
     const uint16_t io = g_uhci_ctx.io_base;
 

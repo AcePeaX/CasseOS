@@ -37,8 +37,8 @@ OBJ := $(patsubst %.c, $(BUILD_DIR)/%.o, $(C_SOURCES) $(BUILD_DIR)/cpu/interrupt
 CFLAGS = -g -ffreestanding -Wall -Wextra -fno-exceptions -m64 -I. -O2
 LDFLAGS = -T linker.ld
 QEMUFLAGS = -device piix3-usb-uhci \
-		#-machine pc \
-		#-device usb-kbd \
+		-machine pc \
+		-device usb-kbd \
 		# -device usb-mouse \
 		#-trace usb_uhci
 

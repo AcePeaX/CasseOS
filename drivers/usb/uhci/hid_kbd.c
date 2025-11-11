@@ -83,7 +83,7 @@ int uhci_kbd_open_interrupt_in(uint16_t io_base,
             p->ep       = ep_number_from_addr(endpoint_address);
             p->interval = (interval_frames == 0) ? 1 : interval_frames;
             p->dev_index= (uint8_t)keyboard_dev_index;
-            p->toggle   = 1; // HID interrupt IN typically starts with DATA1 (many stacks do this)
+            p->toggle   = 0; // HID interrupt IN typically starts with DATA1 (many stacks do this)
 
             // Allocate objects
             p->buf = (uint8_t*)aligned_alloc(16, 8);
@@ -156,7 +156,7 @@ void uhci_kbd_service(void)
         uhci_td_t *td = p->td;
 
         // Active bit is bit 23 (0x800000) in your code. If Active is still set, not done yet.
-        if (td->control_status & 0x800000) continue;
+        if (td->control_status & 0x800000) continue;  // bit23 ACTIVE
 
         // Check for errors (same masks you use elsewhere)
         if (td->control_status & (1 << 22)) {
@@ -167,9 +167,29 @@ void uhci_kbd_service(void)
         // We have a fresh 8-byte report in p->buf
         keyboard_usb_on_boot_report(p->dev_index, p->buf);
 
+        printf("TD done: cs=%x tok=%x buf=%x\n", td->control_status, td->token, p->buf);
+        for (int i=0;i<8;i++) printf("%x ", p->buf[i]); printf("\n");
+
+
         // Re-arm: toggle data toggle, set Active, keep same buffer
         p->toggle ^= 1;
         td->token = uhci_build_in_token(p->dev_addr, p->ep, p->toggle, 8);
-        td->control_status = TD_ACTIVE | TD_IOC | TD_SPD; // Active again
+        
+        // Low 11 bits: Actual Length = 0x7FF (required by UHCI when arming)
+        // Clear any HC-written status bits; then set SPD/IOC/ACTIVE.
+        td->control_status = 0;
+        td->control_status |= 0x000007FF;   // ActualLength = 0x7FF
+        td->control_status |= TD_SPD;       // Short Packet Detect
+        td->control_status |= TD_IOC;       // Interrupt on complete
+        td->control_status |= TD_ACTIVE;    // Re-activate
+
+        // Make sure the HC sees these writes before the next frame.
+        __asm__ __volatile__ ("" ::: "memory");
+
+
+        printf("TD rearmed: cs=%x tok=%x buf=%x\n", td->control_status, td->token, p->buf);
+        for (int i=0;i<8;i++) printf("%x ", p->buf[i]); printf("\n");
+        
+        printf("KBD Services!\n");
     }
 }

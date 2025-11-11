@@ -45,7 +45,8 @@ void shell_main_loop(){
     //printf("Check\n");
     while (kbd_read_event(&ev)) {
         if (ev.type == KEY_EV_PRESS) {
-            printf("Clicked!\n");
+            printf("Clicked: %d\n", ev.code);
+            end_command = handle_command_line(ev.code,command);
         }
     }
     /*if((scancode = keyboard_buffer_pop())){
