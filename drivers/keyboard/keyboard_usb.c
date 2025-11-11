@@ -37,10 +37,10 @@ static inline uint16_t mods_from_hid(uint8_t m)
     if (m & (1<<1)) mods |= KM_SHIFT;
     if (m & (1<<2)) mods |= KM_ALT;
     if (m & (1<<3)) mods |= KM_GUI;
-    if (m & (1<<4)) mods |= KM_RCTRL;
-    if (m & (1<<5)) mods |= KM_RSHIFT;
-    if (m & (1<<6)) mods |= KM_RALT;
-    if (m & (1<<7)) mods |= KM_RGUI;
+    if (m & (1<<4)) { mods |= KM_CTRL;  mods |= KM_RCTRL;  }
+    if (m & (1<<5)) { mods |= KM_SHIFT; mods |= KM_RSHIFT; }
+    if (m & (1<<6)) { mods |= KM_ALT;   mods |= KM_RALT;   }
+    if (m & (1<<7)) { mods |= KM_GUI;   mods |= KM_RGUI;   }
     return mods;
 }
 
@@ -48,6 +48,33 @@ static inline int report_contains(const uint8_t rep[8], uint8_t usage)
 {
     for (int i = 2; i < 8; ++i) if (rep[i] == usage) return 1;
     return 0;
+}
+
+typedef struct {
+    uint8_t usage;
+    uint8_t set1;
+} hid_usage_map_t;
+
+static const hid_usage_map_t hid_usage_map[] = {
+    {0x04, 0x1E}, {0x05, 0x30}, {0x06, 0x2E}, {0x07, 0x20}, {0x08, 0x12}, {0x09, 0x21},
+    {0x0A, 0x22}, {0x0B, 0x23}, {0x0C, 0x17}, {0x0D, 0x24}, {0x0E, 0x25}, {0x0F, 0x26},
+    {0x10, 0x32}, {0x11, 0x31}, {0x12, 0x18}, {0x13, 0x19}, {0x14, 0x10}, {0x15, 0x13},
+    {0x16, 0x1F}, {0x17, 0x14}, {0x18, 0x16}, {0x19, 0x2F}, {0x1A, 0x11}, {0x1B, 0x2D},
+    {0x1C, 0x15}, {0x1D, 0x2C},
+    {0x1E, 0x02}, {0x1F, 0x03}, {0x20, 0x04}, {0x21, 0x05}, {0x22, 0x06}, {0x23, 0x07},
+    {0x24, 0x08}, {0x25, 0x09}, {0x26, 0x0A}, {0x27, 0x0B},
+    {0x2C, 0x39},
+    {0x2D, 0x0C}, {0x2E, 0x0D}, {0x2F, 0x1A}, {0x30, 0x1B}, {0x31, 0x2B},
+    {0x33, 0x27}, {0x34, 0x28}, {0x35, 0x29},
+    {0x36, 0x33}, {0x37, 0x34}, {0x38, 0x35},
+};
+
+static uint8_t hid_usage_to_set1(uint8_t usage)
+{
+    for (unsigned i = 0; i < sizeof(hid_usage_map)/sizeof(hid_usage_map[0]); ++i) {
+        if (hid_usage_map[i].usage == usage) return hid_usage_map[i].set1;
+    }
+    return 0xFF;
 }
 
 /* HID Usage (0x07 page) -> extended KC_* (non-printables) */
@@ -88,29 +115,11 @@ static keycode_t hid_usage_to_ext_kc(uint8_t u)
 /* Printable ASCII from HID usage, given shift/caps state
  * Returns 0 if not a printable ASCII key.
  */
-static char hid_usage_to_ascii(uint8_t u, bool shift, bool caps)
+static char hid_usage_to_ascii(uint8_t usage, uint16_t mods_state)
 {
-    /* Letters a..z: 0x04..0x1D */
-    if (u >= 0x04 && u <= 0x1D) {
-        bool upper = (shift ^ caps);
-        char base = upper ? 'A' : 'a';
-        return (char)(base + (u - 0x04));
-    }
-
-    /* 1..9: 0x1E..0x26, 0x27: 0  (no symbol layer here; add if needed) */
-    if (u >= 0x1E && u <= 0x26) {
-        static const char digits[] = "123456789";
-        return digits[u - 0x1E];
-    }
-    if (u == 0x27) return '0';
-
-    /* Space/Tab/Enter/Backspace already handled by ext map (but we can return ASCII for convenience) */
-    if (u == 0x2C) return ' ';
-    if (u == 0x2B) return '\t';
-    if (u == 0x28) return '\n';
-    if (u == 0x2A) return '\b';
-
-    return 0;
+    uint8_t sc = hid_usage_to_set1(usage);
+    if (sc == 0xFF) return 0;
+    return kbd_layout_ascii_from_set1(sc, mods_state);
 }
 
 /* Emit a single key event */
@@ -132,7 +141,7 @@ static void emit_modifier_deltas(uint16_t prev, uint16_t now, uint8_t dev_id)
     uint16_t changed = (prev ^ now);
 
     struct { uint16_t mask; keycode_t kc; } map[] = {
-        { KC_LCTRL,  KC_LCTRL }, { KC_LSHIFT, KC_LSHIFT }, { KC_LALT,  KC_LALT }, { KC_LGUI,  KC_LGUI },
+        { KM_CTRL,   KC_LCTRL }, { KM_SHIFT,  KC_LSHIFT }, { KM_ALT,   KC_LALT }, { KM_GUI,   KC_LGUI },
         { KM_RCTRL,  KC_RCTRL }, { KM_RSHIFT, KC_RSHIFT }, { KM_RALT,  KC_RALT }, { KM_RGUI,  KC_RGUI },
     };
 
@@ -238,7 +247,7 @@ void keyboard_usb_on_boot_report(int dev_index, const uint8_t report[8])
             keycode_t kc = hid_usage_to_ext_kc(u);
             if (kc == KC_NONE) {
                 /* If it was printable ASCII before, compute as ASCII (case doesn't matter on release) */
-                char ch = hid_usage_to_ascii(u, /*shift*/false, /*caps*/false);
+                char ch = hid_usage_to_ascii(u, 0);
                 if (ch) kc = (keycode_t)(uint8_t)ch;
             }
             if (kc != KC_NONE)
@@ -247,14 +256,12 @@ void keyboard_usb_on_boot_report(int dev_index, const uint8_t report[8])
     }
 
     /* 3) Emit presses for newly present keys */
-    bool shift = (m_now & (KC_LSHIFT | KM_RSHIFT)) != 0;
-    bool caps  = (m_now & KM_CAPS) != 0; /* If you track caps LED, reflect it here; else keep 0 until LED set. */
-
     for (int i = 2; i < 8; ++i) {
         uint8_t u = report[i];
         if (u && !report_contains(prev, u)) {
             /* Prefer printable ASCII when possible */
-            char ch = hid_usage_to_ascii(u, shift, caps);
+            uint16_t mods_snapshot = kbd_mods_state();
+            char ch = hid_usage_to_ascii(u, mods_snapshot);
             keycode_t kc = KC_NONE;
 
             if (ch) {

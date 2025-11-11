@@ -116,6 +116,8 @@ void kbd_set_lock_leds(uint8_t caps, uint8_t num, uint8_t scroll);
 uint8_t kbd_register_device(kbd_source_t src, uint8_t hw_id);
 void    kbd_unregister_device(uint8_t logical_id);
 
+char    kbd_layout_ascii_from_set1(uint8_t scancode, uint16_t mods_state);
+
 // ---- Lifecycle / options ----
 void     kbd_subsystem_init(void);        // sets layout, clears buffers, etc.
 void     kbd_set_layout(uint8_t layout);  // 0=QWERTY, 1=AZERTY (or what you prefer)

@@ -58,6 +58,8 @@ static const char sc_ascii_azerty_cap[] = {
     '?','*','W','X','C','V','B','N','?', '.', '/', '?',0x1A/*§*/,'?','?',' '
 };
 
+#define SC_ASCII_TABLE_LEN (sizeof(sc_ascii_qwerty))
+
 /* Work pointers to current layout */
 static const char *tbl_norm  = sc_ascii_azerty;
 static const char *tbl_shift = sc_ascii_azerty_cap;
@@ -251,6 +253,13 @@ static keycode_t ps2_e0_to_ext(uint8_t raw) {
     }
 }
 
+char kbd_layout_ascii_from_set1(uint8_t sc, uint16_t mods_state) {
+    if (sc >= SC_ASCII_TABLE_LEN) return 0;
+    const char *tbl = ((mods_state & KM_CAPS) ^ (mods_state & KM_SHIFT)) ? tbl_shift : tbl_norm;
+    char c = tbl[sc];
+    return (c == '?') ? 0 : c;
+}
+
 static inline char translate_ps2_ascii(uint8_t raw) {
     if (raw == SC_BACKSPACE) return '\b';
     if (raw == SC_TAB)       return '\t';
@@ -258,9 +267,7 @@ static inline char translate_ps2_ascii(uint8_t raw) {
     if (raw == 0x39)         return ' '; /* space */
 
     if (raw < 0x40) {
-        const char *tbl = ((g_mods & KM_CAPS) ^ (g_mods & KM_SHIFT)) ? tbl_shift : tbl_norm;
-        char c = tbl[raw];
-        return (c == '?') ? 0 : c;
+        return kbd_layout_ascii_from_set1(raw, g_mods);
     }
     return 0;
 }
