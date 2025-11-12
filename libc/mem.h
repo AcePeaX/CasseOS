@@ -10,6 +10,9 @@ void memory_copy(void *dest, const void *source, size_t nbytes);
 void* memory_set(void *dest, uint8_t val, size_t len);
 #define memset memory_set
 
+int memory_compare(const void* a, const void* b, size_t n);
+#define memcmp memory_compare
+
 
 /* At this stage there is no 'free' implemented. */
 uint32_t kmalloc(size_t size, int align, uint32_t *phys_addr);
