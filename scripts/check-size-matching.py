@@ -3,7 +3,7 @@ import os
 import sys
 
 bootloader_asm=""
-with open("bootloader/bootloader.asm") as f:
+with open("bootloader/bios/bootloader.asm") as f:
     bootloader_asm = f.read()
 sections = bootloader_asm.split("NUM_SECTORS")
 section = sections[3].split("%endif")

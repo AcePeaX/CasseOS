@@ -21,10 +21,10 @@ This plan makes CasseOS bootable on machines that expose either legacy BIOS or m
    - Kernel gets written once (e.g., `/EFI/BOOT/CASSEKRN.BIN`) and both loaders read from there so there’s no duplication.
 
 ## 3. BIOS Boot Flow Upgrades
-1. **Stage-1 (512 B, bootloader/legacy/stage1.asm)**
+1. **Stage-1 (512 B, bootloader/bios/stage1.asm)**
    - Enable A20 (fast gate) before jumping to stage-2.
    - Use BIOS extension `int 0x13 ah=0x42` to fetch stage-2 via LBA from the BIOS boot partition; stage-2 size gets encoded in BPB or a tiny metadata block at LBA2.
-2. **Stage-2 (bootloader/legacy/stage2.asm + helpers)**
+2. **Stage-2 (bootloader/bios/stage2.asm + helpers)**
    - Relocate to 0x00080000 as today but split responsibilities:
      - Switch to unreal/protected mode to copy remaining kernel chunks >1 MiB if needed.
      - Reuse existing `32bit-*` helpers for GDT setup; extend to build the final long-mode page tables.
@@ -34,7 +34,7 @@ This plan makes CasseOS bootable on machines that expose either legacy BIOS or m
      - Alternative short-term approach: reserve contiguous sectors for kernel and keep metadata table; switch to FAT reader later.
    - Construct a `boot_info` struct (memory map, framebuffer placeholder, boot mode flag) and jump to kernel entry point in long mode.
 3. **Deliverables**
-   - `bootloader/legacy/` directory with stage1/2 + shared NASM helpers.
+   - `bootloader/bios/` directory with stage1/2 + shared NASM helpers.
    - Updated Makefile rule to produce `bios-stage2.bin` and bundle with disk image builder script.
 
 ## 4. UEFI Boot Flow
@@ -79,7 +79,7 @@ struct boot_info {
 
 ## 6. Implementation Phases
 1. **Phase A – Repo prep**
-   - Restructure `bootloader/` into `legacy/` and `uefi/`.
+   - Restructure `bootloader/` into `bios/` and `uefi/`.
    - Add `include/boot/` headers and shared assembly helpers.
    - Introduce Python script that builds disk image (works in current toolchain).
 2. **Phase B – BIOS modernization**

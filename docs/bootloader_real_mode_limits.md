@@ -1,6 +1,6 @@
 # Real-Mode Loading Constraints & Next Steps
 
-The current stage-1 bootloader (`bootloader/bootloader.asm`) stays in BIOS real mode and uses the legacy `int 0x13` CHS call to copy the kernel image into memory at `0x80000`. That works for the present ~32 KiB payload, but it imposes strict limits you’ll hit as soon as the kernel and its libraries grow.
+The current stage-1 bootloader (`bootloader/bios/bootloader.asm`) stays in BIOS real mode and uses the legacy `int 0x13` CHS call to copy the kernel image into memory at `0x80000`. That works for the present ~32 KiB payload, but it imposes strict limits you’ll hit as soon as the kernel and its libraries grow.
 
 ## 1. 64 KiB buffer window per BIOS read
 `disk_load` places the BIOS transfer buffer at `ES:BX = 0x8000:0`. Because offsets are only 16 bits, the BIOS write pointer wraps after 64 KiB. Any single `int 0x13` read larger than that trashes earlier data.

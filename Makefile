@@ -22,6 +22,9 @@ KERNEL_START_MEM = 0x80000
 BUILD_DIR := .build
 BIN_DIR := .bin
 
+BIOS_BOOTLOADER_DIR := bootloader/bios
+BIOS_BOOTLOADER_SRC := $(BIOS_BOOTLOADER_DIR)/bootloader.asm
+BIOS_BOOTLOADER_FILES := $(wildcard $(BIOS_BOOTLOADER_DIR)/*.asm)
 
 C_SOURCES = $(shell find kernel drivers cpu libc -name '*.c')
 #C_SOURCES = $(shell find kernel cpu libc -name '*.c')
@@ -47,9 +50,9 @@ all: os-image
 $(BIN_DIR)/kernel.bin: $(BUILD_DIR)/kernel/kernel_entry.o ${OBJ}
 	$(LD) $(LDFLAGS) -o $@ -Ttext $(KERNEL_START_MEM) $^ --oformat binary
 
-$(BIN_DIR)/bootloader.bin: bootloader/*
+$(BIN_DIR)/bootloader.bin: $(BIOS_BOOTLOADER_FILES)
 	@./scripts/create_file_path.sh $@
-	@nasm bootloader/bootloader.asm -f bin -i$(dir $<) -o $@
+	@nasm $(BIOS_BOOTLOADER_SRC) -f bin -i$(BIOS_BOOTLOADER_DIR)/ -o $@
 
 $(BUILD_DIR)/kernel.elf: $(BUILD_DIR)/kernel/kernel_entry.o ${OBJ}
 	@$(LD) $(LDFLAGS) -o $@ -Ttext $(KERNEL_START_MEM) $^
@@ -86,8 +89,8 @@ info:
 	@echo "C_SOURCES = $(C_SOURCES)"
 	@echo "OBJ = $(OBJ)"
 
-bootloader-elf: bootloader/*
-	nasm -f elf32 -g bootloader/bootloader.asm -i$(dir $<) -o $(BUILD_DIR)/bootloader.o  -D ELF_FORMAT
+bootloader-elf: $(BIOS_BOOTLOADER_FILES)
+	nasm -f elf32 -g $(BIOS_BOOTLOADER_SRC) -i$(BIOS_BOOTLOADER_DIR)/ -o $(BUILD_DIR)/bootloader.o  -D ELF_FORMAT
 	ld -m elf_i386 -Ttext 0x7C00 -o $(BIN_DIR)/bootloader-elf $(BUILD_DIR)/bootloader.o
 	objdump -d $(BIN_DIR)/bootloader-elf
 
