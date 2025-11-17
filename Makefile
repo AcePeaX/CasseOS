@@ -22,6 +22,8 @@ KERNEL_START_MEM = 0x80000
 BUILD_DIR := .build
 BIN_DIR := .bin
 
+DISK_IMAGE := $(BIN_DIR)/casseos.img
+
 BIOS_BOOTLOADER_DIR := bootloader/bios
 BIOS_BOOTLOADER_SRC := $(BIOS_BOOTLOADER_DIR)/bootloader.asm
 BIOS_BOOTLOADER_FILES := $(wildcard $(BIOS_BOOTLOADER_DIR)/*.asm)
@@ -70,6 +72,11 @@ $(BIN_DIR)/os-image.bin: $(BIN_DIR)/bootloader.bin $(BIN_DIR)/kernel.bin
 os-image.bin: $(BIN_DIR)/os-image.bin
 os-image: os-image.bin
 
+$(DISK_IMAGE): $(BIN_DIR)/os-image.bin scripts/build_disk_image.sh
+	@./scripts/build_disk_image.sh
+
+disk-image: $(DISK_IMAGE)
+
 qemu: $(BIN_DIR)/os-image.bin
 	@$(QEMU) $(QEMUFLAGS) -fda $(BIN_DIR)/os-image.bin -monitor stdio -display sdl
 
@@ -81,6 +88,20 @@ debug: $(BUILD_DIR)/kernel.elf $(BIN_DIR)/os-image.bin
 
 virtualbox: $(BIN_DIR)/os-image.bin
 	@./scripts/launch.sh --virtualbox
+
+OVMF_CODE ?= /usr/share/OVMF/OVMF_CODE_4M.fd
+OVMF_VARS_TEMPLATE ?= /usr/share/OVMF/OVMF_VARS_4M.fd
+OVMF_VARS ?= $(BIN_DIR)/OVMF_VARS.fd
+
+qemu-uefi: $(DISK_IMAGE)
+	@if [ ! -f "$(OVMF_CODE)" ]; then echo "Missing OVMF_CODE at $(OVMF_CODE). Override the variable to point to your OVMF_CODE.fd."; exit 1; fi
+	@if [ ! -f "$(OVMF_VARS_TEMPLATE)" ] && [ ! -f "$(OVMF_VARS)" ]; then echo "Missing OVMF_VARS template at $(OVMF_VARS_TEMPLATE). Override OVMF_VARS_TEMPLATE or place a vars file at $(OVMF_VARS)."; exit 1; fi
+	@if [ ! -f "$(OVMF_VARS)" ] && [ -f "$(OVMF_VARS_TEMPLATE)" ]; then cp "$(OVMF_VARS_TEMPLATE)" "$(OVMF_VARS)"; fi
+	@$(QEMU) -cpu qemu64 \
+		-drive if=pflash,format=raw,unit=0,file=$(OVMF_CODE),readonly=on \
+		-drive if=pflash,format=raw,unit=1,file=$(OVMF_VARS) \
+		-drive format=raw,file=$(DISK_IMAGE) \
+		-net none
 
 num_sectors: $(BIN_DIR)/kernel.bin
 	@KERNEL_BIN_PATH=$(BIN_DIR)/kernel.bin ./scripts/num_sectors.sh
