@@ -7,7 +7,7 @@ BIN_DIR="${REPO_ROOT}/.bin"
 BIOS_IMAGE="${BIN_DIR}/os-image.bin"
 DISK_IMAGE="${BIN_DIR}/casseos.img"
 ESP_IMAGE="${BIN_DIR}/esp-fat32.img"
-UEFI_STUB="${BIN_DIR}/uefi-placeholder.bin"
+UEFI_BINARY="${BIN_DIR}/BOOTX64.EFI"
 
 SECTOR_SIZE=512
 ESP_SIZE_MB=64
@@ -40,6 +40,11 @@ if [[ ! -f "${BIOS_IMAGE}" ]]; then
     exit 1
 fi
 
+if [[ ! -f "${UEFI_BINARY}" ]]; then
+    echo "Missing ${UEFI_BINARY}. Build the UEFI loader (try 'make BOOTX64.EFI')." >&2
+    exit 1
+fi
+
 BIOS_SIZE_BYTES=$(stat -c%s "${BIOS_IMAGE}")
 BIOS_SECTORS=$(((BIOS_SIZE_BYTES + SECTOR_SIZE - 1) / SECTOR_SIZE))
 
@@ -54,14 +59,11 @@ truncate -s "${TOTAL_BYTES}" "${DISK_IMAGE}"
 
 dd if="${BIOS_IMAGE}" of="${DISK_IMAGE}" conv=notrunc bs=${SECTOR_SIZE} status=none
 
-# Build a throwaway UEFI stub (two-byte infinite loop). Not a valid PE/COFF image yet.
-printf '\xEB\xFE' > "${UEFI_STUB}"
-
 ESP_KIB=$((ESP_SECTORS / 2))
 mkfs.fat -F 32 -n CASSEESP -C "${ESP_IMAGE}" "${ESP_KIB}" >/dev/null
 mmd -i "${ESP_IMAGE}" ::/EFI
 mmd -i "${ESP_IMAGE}" ::/EFI/BOOT
-mcopy -i "${ESP_IMAGE}" "${UEFI_STUB}" ::/EFI/BOOT/BOOTX64.EFI >/dev/null
+mcopy -i "${ESP_IMAGE}" "${UEFI_BINARY}" ::/EFI/BOOT/BOOTX64.EFI >/dev/null
 
 dd if="${ESP_IMAGE}" of="${DISK_IMAGE}" conv=notrunc bs=${SECTOR_SIZE} seek=${PARTITION_START_LBA} status=none
 
@@ -86,6 +88,6 @@ with open(disk_path, "r+b") as fh:
     fh.write(entry)
 PY
 
-rm -f "${ESP_IMAGE}" "${UEFI_STUB}"
+rm -f "${ESP_IMAGE}"
 
 echo "Created ${DISK_IMAGE} with BIOS loader plus ${ESP_SIZE_MB}MB FAT32 ESP."

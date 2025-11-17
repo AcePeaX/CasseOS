@@ -10,9 +10,13 @@ LD=x86_64-elf-ld # Or /usr/local/cross/bin/x86_64-elf-ld
 #LD=i386-elf-ld or /usr/local/cross/bin/i386-elf-ld
 #LD=i686-elf-ld or /usr/local/cross/bin/i686-elf-ld
 
+UEFI_LD ?= ld
+
 GDB=x86_64-elf-gdb # Or /usr/local/cross/bin/x86_64-elf-gdb
 #GDB=i386-elf-gdb or /usr/local/cross/bin/i386-elf-gdb
 #GDB="i686-elf-gdb" or /usr/local/cross/bin/i686-elf-gdb
+
+OBJCOPY=x86_64-elf-objcopy
 
 #QEMU=qemu-system-i386
 QEMU=qemu-system-x86_64
@@ -27,6 +31,14 @@ DISK_IMAGE := $(BIN_DIR)/casseos.img
 BIOS_BOOTLOADER_DIR := bootloader/bios
 BIOS_BOOTLOADER_SRC := $(BIOS_BOOTLOADER_DIR)/bootloader.asm
 BIOS_BOOTLOADER_FILES := $(wildcard $(BIOS_BOOTLOADER_DIR)/*.asm)
+
+UEFI_DIR := bootloader/uefi
+UEFI_INCLUDE := -I$(UEFI_DIR)/include
+UEFI_OBJ := $(BUILD_DIR)/bootloader/uefi/main.o
+UEFI_EFI := $(BIN_DIR)/BOOTX64.EFI
+UEFI_HEADERS := $(UEFI_DIR)/include/uefi.h
+UEFI_CFLAGS := ${CFLAGS} -fshort-wchar -mno-red-zone -fno-stack-protector -fno-ident -fpic $(UEFI_INCLUDE)
+UEFI_LDFLAGS := -nostdlib -shared -Bsymbolic -m i386pep --subsystem 10 -e efi_main
 
 C_SOURCES = $(shell find kernel drivers cpu libc -name '*.c')
 #C_SOURCES = $(shell find kernel cpu libc -name '*.c')
@@ -47,7 +59,7 @@ QEMUFLAGS = -device piix3-usb-uhci \
 		# -device usb-mouse \
 		#-trace usb_uhci
 
-all: os-image
+all: os-image $(UEFI_EFI)
 
 $(BIN_DIR)/kernel.bin: $(BUILD_DIR)/kernel/kernel_entry.o ${OBJ}
 	$(LD) $(LDFLAGS) -o $@ -Ttext $(KERNEL_START_MEM) $^ --oformat binary
@@ -72,7 +84,15 @@ $(BIN_DIR)/os-image.bin: $(BIN_DIR)/bootloader.bin $(BIN_DIR)/kernel.bin
 os-image.bin: $(BIN_DIR)/os-image.bin
 os-image: os-image.bin
 
-$(DISK_IMAGE): $(BIN_DIR)/os-image.bin scripts/build_disk_image.sh
+$(UEFI_OBJ): $(UEFI_DIR)/main.c $(UEFI_HEADERS)
+	@./scripts/create_file_path.sh $@
+	$(GCC) $(UEFI_CFLAGS) -c $< -o $@
+
+$(UEFI_EFI): $(UEFI_OBJ)
+	@./scripts/create_file_path.sh $@
+	$(UEFI_LD) $(UEFI_LDFLAGS) $(UEFI_OBJ) -o $@
+
+$(DISK_IMAGE): $(BIN_DIR)/os-image.bin $(UEFI_EFI) scripts/build_disk_image.sh
 	@./scripts/build_disk_image.sh
 
 disk-image: $(DISK_IMAGE)
