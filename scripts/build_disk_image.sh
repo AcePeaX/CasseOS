@@ -8,6 +8,8 @@ BIOS_IMAGE="${BIN_DIR}/os-image.bin"
 DISK_IMAGE="${BIN_DIR}/casseos.img"
 ESP_IMAGE="${BIN_DIR}/esp-fat32.img"
 UEFI_BINARY="${BIN_DIR}/BOOTX64.EFI"
+KERNEL_BINARY="${BIN_DIR}/kernel.bin"
+KERNEL_ESP_PATH="::/CASSEKRN.BIN"
 STARTUP_SCRIPT="${BIN_DIR}/startup.nsh"
 
 SECTOR_SIZE=512
@@ -46,6 +48,11 @@ if [[ ! -f "${UEFI_BINARY}" ]]; then
     exit 1
 fi
 
+if [[ ! -f "${KERNEL_BINARY}" ]]; then
+    echo "Missing ${KERNEL_BINARY}. Build the kernel first." >&2
+    exit 1
+fi
+
 BIOS_SIZE_BYTES=$(stat -c%s "${BIOS_IMAGE}")
 BIOS_SECTORS=$(((BIOS_SIZE_BYTES + SECTOR_SIZE - 1) / SECTOR_SIZE))
 
@@ -65,6 +72,7 @@ mkfs.fat -F 32 -n CASSEESP -C "${ESP_IMAGE}" "${ESP_KIB}" >/dev/null
 mmd -i "${ESP_IMAGE}" ::/EFI
 mmd -i "${ESP_IMAGE}" ::/EFI/BOOT
 mcopy -i "${ESP_IMAGE}" "${UEFI_BINARY}" ::/EFI/BOOT/BOOTX64.EFI >/dev/null
+mcopy -i "${ESP_IMAGE}" "${KERNEL_BINARY}" "${KERNEL_ESP_PATH}" >/dev/null
 
 cat > "${STARTUP_SCRIPT}" <<'EOF'
 fs0:

@@ -33,7 +33,7 @@ BIOS_BOOTLOADER_SRC := $(BIOS_BOOTLOADER_DIR)/bootloader.asm
 BIOS_BOOTLOADER_FILES := $(wildcard $(BIOS_BOOTLOADER_DIR)/*.asm)
 
 UEFI_DIR := bootloader/uefi
-UEFI_INCLUDE := -I$(UEFI_DIR)/include
+UEFI_INCLUDE := -I$(UEFI_DIR)/include -Iinclude
 UEFI_OBJ := $(BUILD_DIR)/bootloader/uefi/main.o
 UEFI_EFI := $(BIN_DIR)/BOOTX64.EFI
 UEFI_HEADERS := $(UEFI_DIR)/include/uefi.h

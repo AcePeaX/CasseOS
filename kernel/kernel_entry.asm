@@ -10,6 +10,16 @@ start_kernel:
     call kernel_main ; Calls the C function. The linker will know where it is placed in memory
     jmp $
 
+global kernel_uefi_entry
+kernel_uefi_entry:
+    cli
+    mov rsp, 0x80000
+    mov rbp, rsp
+    extern kernel_main
+    call kernel_main
+.hang:
+    hlt
+    jmp .hang
 
 
 

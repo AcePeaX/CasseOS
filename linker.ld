@@ -7,8 +7,9 @@ MEMORY
 
 SECTIONS
 {
-    /* Code (text) section */
+    /* Code (text + bootinfo) section */
     .text : {
+        KEEP(*(.bootinfo))
         *(.text*)
     } > RAM
 
