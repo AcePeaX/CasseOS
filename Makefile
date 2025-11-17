@@ -62,14 +62,14 @@ EXTRA_QEMU_FLAGS ?=
 
 all: os-image $(UEFI_EFI)
 
-$(BIN_DIR)/kernel.bin: $(BUILD_DIR)/kernel/kernel_entry.o $(BUILD_DIR)/kernel/uefi_setup.o ${OBJ}
+$(BIN_DIR)/kernel.bin: $(BUILD_DIR)/kernel/kernel_entry.o ${OBJ}
 	$(LD) $(LDFLAGS) -o $@ -Ttext $(KERNEL_START_MEM) $^ --oformat binary
 
 $(BIN_DIR)/bootloader.bin: $(BIOS_BOOTLOADER_FILES)
 	@./scripts/create_file_path.sh $@
 	@nasm $(BIOS_BOOTLOADER_SRC) -f bin -i$(BIOS_BOOTLOADER_DIR)/ -o $@
 
-$(BUILD_DIR)/kernel.elf: $(BUILD_DIR)/kernel/kernel_entry.o $(BUILD_DIR)/kernel/uefi_setup.o ${OBJ}
+$(BUILD_DIR)/kernel.elf: $(BUILD_DIR)/kernel/kernel_entry.o ${OBJ}
 	@$(LD) $(LDFLAGS) -o $@ -Ttext $(KERNEL_START_MEM) $^
 
 kernel.bin: $(BIN_DIR)/kernel.bin

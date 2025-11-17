@@ -8,11 +8,16 @@
 #include "drivers/keyboard/keyboard.h"
 #include "shell/shell.h"
 #include "drivers/pci.h"
+#include "kernel/include/kernel/bootinfo.h"
+
+extern kernel_bootinfo_t kernel_bootinfo;
 
 void kernel_main() {
     cpu_enable_fpu_sse();
     isr_install();
-    irq_install();
+    if ((kernel_bootinfo.flags & KERNEL_BOOTINFO_FLAG_UEFI) == 0) {
+        irq_install();
+    }
     clear_screen();
     pci_scan();
     pci_scan_for_usb_controllers();
@@ -24,4 +29,3 @@ void kernel_main() {
         shell_main_loop();
     }
 }
-

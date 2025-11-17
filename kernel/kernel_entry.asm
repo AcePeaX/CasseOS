@@ -13,9 +13,7 @@ start_kernel:
 global kernel_uefi_entry
 kernel_uefi_entry:
     cli
-    extern kernel_setup_uefi_environment
     extern kernel_main
-    call kernel_setup_uefi_environment
     call kernel_main
 .hang:
     hlt

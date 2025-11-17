@@ -226,11 +226,12 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *system_tab
 
 kernel_loaded:
     {
-    const kernel_bootinfo_t *boot_info = (const kernel_bootinfo_t *)(UINTN)kernel_location;
+    kernel_bootinfo_t *boot_info = (kernel_bootinfo_t *)(UINTN)kernel_location;
     if (boot_info->magic != KERNEL_BOOTINFO_MAGIC) {
         print(system_table, L"Invalid kernel image (bootinfo magic mismatch)\r\n");
         return EFI_LOAD_ERROR;
     }
+    boot_info->flags |= KERNEL_BOOTINFO_FLAG_UEFI;
 
     EFI_PHYSICAL_ADDRESS stack_base = 0;
     status = bs->AllocatePages(AllocateAnyPages, EfiLoaderData, KERNEL_STACK_PAGES, &stack_base);

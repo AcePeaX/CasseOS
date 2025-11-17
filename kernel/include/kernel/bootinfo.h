@@ -8,6 +8,9 @@
 typedef struct {
     uint64_t magic;
     uint64_t uefi_entry;
+    uint64_t flags;
 } kernel_bootinfo_t;
+
+#define KERNEL_BOOTINFO_FLAG_UEFI 0x1
 
 #endif /* CASSEOS_KERNEL_BOOTINFO_H */
