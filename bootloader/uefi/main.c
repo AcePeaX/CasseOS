@@ -50,7 +50,8 @@ static EFI_STATUS get_file_size(EFI_BOOT_SERVICES *bs, EFI_FILE_PROTOCOL *file, 
 static EFI_STATUS load_kernel(EFI_SYSTEM_TABLE *system_table,
                               EFI_FILE_PROTOCOL *root,
                               EFI_PHYSICAL_ADDRESS *kernel_address,
-                              UINTN *kernel_pages) {
+                              UINTN *kernel_pages,
+                              UINTN *kernel_file_size) {
     EFI_BOOT_SERVICES *bs = system_table->BootServices;
     EFI_FILE_PROTOCOL *kernel_file = NULL;
     EFI_STATUS status = root->Open(root, &kernel_file, KERNEL_RELATIVE_PATH, EFI_FILE_MODE_READ, 0);
@@ -96,6 +97,9 @@ static EFI_STATUS load_kernel(EFI_SYSTEM_TABLE *system_table,
 
     *kernel_address = destination;
     *kernel_pages = pages;
+    if (kernel_file_size) {
+        *kernel_file_size = file_size;
+    }
     return EFI_SUCCESS;
 }
 
@@ -155,6 +159,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *system_tab
     EFI_STATUS status = EFI_LOAD_ERROR;
     EFI_PHYSICAL_ADDRESS kernel_location = 0;
     UINTN kernel_pages = 0;
+    UINTN kernel_file_size = 0;
     int kernel_loaded = FALSE;
 
     EFI_GRAPHICS_OUTPUT_PROTOCOL *gop = NULL;
@@ -187,7 +192,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *system_tab
             return status;
         }
 
-        status = load_kernel(system_table, root, &kernel_location, &kernel_pages);
+        status = load_kernel(system_table, root, &kernel_location, &kernel_pages, &kernel_file_size);
         if (EFI_ERROR(status)) {
             print(system_table, L"Kernel not found on boot volume\r\n");
             return status;
@@ -212,7 +217,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *system_tab
             continue;
         }
 
-        status = load_kernel(system_table, root, &kernel_location, &kernel_pages);
+        status = load_kernel(system_table, root, &kernel_location, &kernel_pages, &kernel_file_size);
         if (!EFI_ERROR(status)) {
             kernel_loaded = TRUE;
             break;
@@ -230,7 +235,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *system_tab
 
 kernel_loaded:
     {
-    kernel_bootinfo_t *boot_info = (kernel_bootinfo_t *)(UINTN)kernel_location;
+    kernel_bootinfo_t *boot_info = (kernel_bootinfo_t *)((UINT8 *)(UINTN)kernel_location + kernel_file_size - sizeof(kernel_bootinfo_t));
     if (boot_info->magic != KERNEL_BOOTINFO_MAGIC) {
         print(system_table, L"Invalid kernel image (bootinfo magic mismatch)\r\n");
         return EFI_LOAD_ERROR;

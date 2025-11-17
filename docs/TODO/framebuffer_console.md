@@ -6,10 +6,10 @@
 - Embed a simple bitmap font for early output.
 
 ## Tasks
-1. **Boot Info Extensions**
+1. [x] **Boot Info Extensions**
    - Add framebuffer fields (base, size, width, height, stride, bpp) plus a `FRAMEBUFFER_PRESENT` flag to `kernel/include/kernel/bootinfo.h`.
    - Update the loader’s boot-info header to match.
-2. **Loader Updates**
+2. [x] **Loader Updates**
    - Locate GOP via `bs->LocateProtocol`.
    - Record framebuffer metadata and set the framebuffer flag before `ExitBootServices`.
 3. **Kernel Detection**
