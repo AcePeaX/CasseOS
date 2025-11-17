@@ -10,6 +10,7 @@ There is a makefile containing the commands:
 - `GCC` and `LD` and `GDB` and `QEMU` variables to set to either `i386` or `i686` cross compiler/binutils/debugger
 - `make clean`
 - `make all`
+- `make qemu-bios` boots the legacy BIOS path.
 - `make run` or `make qemu`
 - `make debug`
 - `make virtualbox`

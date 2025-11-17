@@ -77,8 +77,10 @@ $(DISK_IMAGE): $(BIN_DIR)/os-image.bin scripts/build_disk_image.sh
 
 disk-image: $(DISK_IMAGE)
 
-qemu: $(BIN_DIR)/os-image.bin
+qemu-bios: $(BIN_DIR)/os-image.bin
 	@$(QEMU) $(QEMUFLAGS) -fda $(BIN_DIR)/os-image.bin -monitor stdio -display sdl
+
+qemu: qemu-bios
 
 run: qemu -device usb-tablet
 
