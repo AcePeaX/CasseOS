@@ -34,9 +34,9 @@ BIOS_BOOTLOADER_FILES := $(wildcard $(BIOS_BOOTLOADER_DIR)/*.asm)
 
 UEFI_DIR := bootloader/uefi
 UEFI_INCLUDE := -I$(UEFI_DIR)/include -Iinclude
-UEFI_OBJ := $(BUILD_DIR)/bootloader/uefi/main.o $(BUILD_DIR)/bootloader/uefi/enter_kernel.o
+UEFI_OBJ := $(BUILD_DIR)/bootloader/uefi/main.o $(BUILD_DIR)/bootloader/uefi/enter_kernel.o $(BUILD_DIR)/bootloader/uefi/gop.o
 UEFI_EFI := $(BIN_DIR)/BOOTX64.EFI
-UEFI_HEADERS := $(UEFI_DIR)/include/uefi.h
+UEFI_HEADERS := $(UEFI_DIR)/include/uefi.h $(UEFI_DIR)/include/gop.h
 UEFI_CFLAGS := ${CFLAGS} -fshort-wchar -mno-red-zone -fno-stack-protector -fno-ident -fpic $(UEFI_INCLUDE)
 UEFI_LDFLAGS := -nostdlib -shared -Bsymbolic -m i386pep --subsystem 10 -e efi_main --image-base 0
 
