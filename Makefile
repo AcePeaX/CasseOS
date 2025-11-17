@@ -58,6 +58,7 @@ QEMUFLAGS = -device piix3-usb-uhci \
 		#-device usb-kbd \
 		# -device usb-mouse \
 		#-trace usb_uhci
+EXTRA_QEMU_FLAGS ?=
 
 all: os-image $(UEFI_EFI)
 
@@ -98,7 +99,7 @@ $(DISK_IMAGE): $(BIN_DIR)/os-image.bin $(UEFI_EFI) scripts/build_disk_image.sh
 disk-image: $(DISK_IMAGE)
 
 qemu-bios: $(BIN_DIR)/os-image.bin
-	@$(QEMU) $(QEMUFLAGS) -fda $(BIN_DIR)/os-image.bin -monitor stdio -display sdl
+	@$(QEMU) $(QEMUFLAGS) -fda $(BIN_DIR)/os-image.bin -monitor stdio -display sdl $(EXTRA_QEMU_FLAGS)
 
 qemu: qemu-bios
 
@@ -123,7 +124,7 @@ qemu-uefi: $(DISK_IMAGE)
 		-drive if=pflash,format=raw,unit=0,file=$(OVMF_CODE),readonly=on \
 		-drive if=pflash,format=raw,unit=1,file=$(OVMF_VARS) \
 		-drive format=raw,file=$(DISK_IMAGE) \
-		-net none
+		-net none $(EXTRA_QEMU_FLAGS)
 
 num_sectors: $(BIN_DIR)/kernel.bin
 	@KERNEL_BIN_PATH=$(BIN_DIR)/kernel.bin ./scripts/num_sectors.sh

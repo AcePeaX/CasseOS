@@ -1,6 +1,8 @@
 #include "uefi.h"
 
-static const CHAR16 HELLO_MESSAGE[] = L"Hello bootloader\r\n";
+static const CHAR16 HELLO_MESSAGE[] = {
+    'H','e','l','l','o',' ','b','o','o','t','l','o','a','d','e','r','\r','\n',0
+};
 
 EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *system_table) {
     (void)image_handle;

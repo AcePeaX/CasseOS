@@ -8,6 +8,7 @@ BIOS_IMAGE="${BIN_DIR}/os-image.bin"
 DISK_IMAGE="${BIN_DIR}/casseos.img"
 ESP_IMAGE="${BIN_DIR}/esp-fat32.img"
 UEFI_BINARY="${BIN_DIR}/BOOTX64.EFI"
+STARTUP_SCRIPT="${BIN_DIR}/startup.nsh"
 
 SECTOR_SIZE=512
 ESP_SIZE_MB=64
@@ -65,6 +66,12 @@ mmd -i "${ESP_IMAGE}" ::/EFI
 mmd -i "${ESP_IMAGE}" ::/EFI/BOOT
 mcopy -i "${ESP_IMAGE}" "${UEFI_BINARY}" ::/EFI/BOOT/BOOTX64.EFI >/dev/null
 
+cat > "${STARTUP_SCRIPT}" <<'EOF'
+fs0:
+\EFI\BOOT\BOOTX64.EFI
+EOF
+mcopy -i "${ESP_IMAGE}" "${STARTUP_SCRIPT}" ::/startup.nsh >/dev/null
+
 dd if="${ESP_IMAGE}" of="${DISK_IMAGE}" conv=notrunc bs=${SECTOR_SIZE} seek=${PARTITION_START_LBA} status=none
 
 python3 - <<'PY'
@@ -77,7 +84,7 @@ sectors = int(os.environ["ESP_SECTORS"])
 
 status = 0x00  # leave inactive so BIOS still boots via LBA0 code
 start_chs = bytes([0x00, 0x02, 0x00])
-partition_type = 0x0C  # FAT32 LBA
+partition_type = 0xEF  # EFI System Partition (MBR)
 end_chs = bytes([0xFE, 0xFF, 0xFF])
 entry = bytes([status]) + start_chs + bytes([partition_type]) + end_chs
 entry += struct.pack("<I", start_lba)
@@ -88,6 +95,6 @@ with open(disk_path, "r+b") as fh:
     fh.write(entry)
 PY
 
-rm -f "${ESP_IMAGE}"
+rm -f "${ESP_IMAGE}" "${STARTUP_SCRIPT}"
 
 echo "Created ${DISK_IMAGE} with BIOS loader plus ${ESP_SIZE_MB}MB FAT32 ESP."
