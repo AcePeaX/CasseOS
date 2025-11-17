@@ -127,6 +127,8 @@ cpuid_not_found_str:                db `ERROR: CPUID unsupported, but required f
 
 align 4
 
+global gdt_64_descriptor
+
 gdt_64_start:
 
 ; Define the null sector for the 64 bit gdt

@@ -13,13 +13,10 @@ start_kernel:
 global kernel_uefi_entry
 kernel_uefi_entry:
     cli
-    mov rsp, 0x80000
-    mov rbp, rsp
+    extern kernel_setup_uefi_environment
     extern kernel_main
+    call kernel_setup_uefi_environment
     call kernel_main
 .hang:
     hlt
     jmp .hang
-
-
-

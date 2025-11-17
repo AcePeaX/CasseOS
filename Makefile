@@ -38,7 +38,7 @@ UEFI_OBJ := $(BUILD_DIR)/bootloader/uefi/main.o $(BUILD_DIR)/bootloader/uefi/ent
 UEFI_EFI := $(BIN_DIR)/BOOTX64.EFI
 UEFI_HEADERS := $(UEFI_DIR)/include/uefi.h
 UEFI_CFLAGS := ${CFLAGS} -fshort-wchar -mno-red-zone -fno-stack-protector -fno-ident -fpic $(UEFI_INCLUDE)
-UEFI_LDFLAGS := -nostdlib -shared -Bsymbolic -m i386pep --subsystem 10 -e efi_main
+UEFI_LDFLAGS := -nostdlib -shared -Bsymbolic -m i386pep --subsystem 10 -e efi_main --image-base 0
 
 C_SOURCES = $(shell find kernel drivers cpu libc -name '*.c')
 #C_SOURCES = $(shell find kernel cpu libc -name '*.c')
@@ -62,14 +62,14 @@ EXTRA_QEMU_FLAGS ?=
 
 all: os-image $(UEFI_EFI)
 
-$(BIN_DIR)/kernel.bin: $(BUILD_DIR)/kernel/kernel_entry.o ${OBJ}
+$(BIN_DIR)/kernel.bin: $(BUILD_DIR)/kernel/kernel_entry.o $(BUILD_DIR)/kernel/uefi_setup.o ${OBJ}
 	$(LD) $(LDFLAGS) -o $@ -Ttext $(KERNEL_START_MEM) $^ --oformat binary
 
 $(BIN_DIR)/bootloader.bin: $(BIOS_BOOTLOADER_FILES)
 	@./scripts/create_file_path.sh $@
 	@nasm $(BIOS_BOOTLOADER_SRC) -f bin -i$(BIOS_BOOTLOADER_DIR)/ -o $@
 
-$(BUILD_DIR)/kernel.elf: $(BUILD_DIR)/kernel/kernel_entry.o ${OBJ}
+$(BUILD_DIR)/kernel.elf: $(BUILD_DIR)/kernel/kernel_entry.o $(BUILD_DIR)/kernel/uefi_setup.o ${OBJ}
 	@$(LD) $(LDFLAGS) -o $@ -Ttext $(KERNEL_START_MEM) $^
 
 kernel.bin: $(BIN_DIR)/kernel.bin
