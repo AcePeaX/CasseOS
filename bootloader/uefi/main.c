@@ -15,6 +15,10 @@ static const EFI_GUID gEfiFileInfoGuid = {
     0x09576e92, 0x6d3f, 0x11d2, {0x8e, 0x39, 0x00, 0xa0, 0xc9, 0x69, 0x72, 0x3b}
 };
 
+static const EFI_GUID gEfiLoadedImageProtocolGuid = {
+    0x5b1b31a1, 0x9562, 0x11d2, {0x8e, 0x3f, 0x00, 0xa0, 0xc9, 0x69, 0x72, 0x3b}
+};
+
 static void print(EFI_SYSTEM_TABLE *system_table, const CHAR16 *message) {
     EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL *console = system_table->ConOut;
     if (console && console->OutputString) {
@@ -140,33 +144,88 @@ static EFI_STATUS exit_boot_services(EFI_BOOT_SERVICES *bs,
 }
 
 typedef void (*kernel_entry_t)(void);
+extern void uefi_enter_kernel(kernel_entry_t entry, UINT64 stack_top) __attribute__((noreturn));
 
 EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *system_table) {
     print(system_table, L"CasseOS UEFI loader starting...\r\n");
     EFI_BOOT_SERVICES *bs = system_table->BootServices;
 
-    EFI_SIMPLE_FILE_SYSTEM_PROTOCOL *fs = NULL;
-    EFI_STATUS status = bs->LocateProtocol(&gEfiSimpleFileSystemProtocolGuid, NULL, (void **)&fs);
-    if (EFI_ERROR(status)) {
-        print(system_table, L"Failed to locate filesystem protocol\r\n");
-        return status;
-    }
-
-    EFI_FILE_PROTOCOL *root = NULL;
-    status = fs->OpenVolume(fs, &root);
-    if (EFI_ERROR(status)) {
-        print(system_table, L"Failed to open volume\r\n");
-        return status;
-    }
-
+    EFI_HANDLE *handles = NULL;
+    UINTN handle_count = 0;
+    EFI_STATUS status = EFI_LOAD_ERROR;
     EFI_PHYSICAL_ADDRESS kernel_location = 0;
     UINTN kernel_pages = 0;
-    status = load_kernel(system_table, root, &kernel_location, &kernel_pages);
+    int kernel_loaded = FALSE;
+
+    status = bs->LocateHandleBuffer(ByProtocol, &gEfiSimpleFileSystemProtocolGuid,
+                                    NULL, &handle_count, &handles);
     if (EFI_ERROR(status)) {
-        print(system_table, L"Failed to load kernel file\r\n");
+        /* Fallback: try to open the first loaded image's device */
+        EFI_LOADED_IMAGE_PROTOCOL *loaded_image = NULL;
+        status = bs->HandleProtocol(image_handle, &gEfiLoadedImageProtocolGuid, (void **)&loaded_image);
+        if (EFI_ERROR(status) || loaded_image == NULL) {
+            print(system_table, L"Failed to query loaded image protocol\r\n");
+            return status;
+        }
+
+        EFI_SIMPLE_FILE_SYSTEM_PROTOCOL *fs = NULL;
+        status = bs->HandleProtocol(loaded_image->DeviceHandle,
+                                    &gEfiSimpleFileSystemProtocolGuid, (void **)&fs);
+        if (EFI_ERROR(status)) {
+            print(system_table, L"Failed to enumerate filesystem handles\r\n");
+            return status;
+        }
+
+        EFI_FILE_PROTOCOL *root = NULL;
+        status = fs->OpenVolume(fs, &root);
+        if (EFI_ERROR(status)) {
+            print(system_table, L"Failed to open filesystem volume\r\n");
+            return status;
+        }
+
+        status = load_kernel(system_table, root, &kernel_location, &kernel_pages);
+        if (EFI_ERROR(status)) {
+            print(system_table, L"Kernel not found on boot volume\r\n");
+            return status;
+        }
+
+        handles = NULL;
+        handle_count = 0;
+        kernel_loaded = TRUE;
+        goto kernel_loaded;
+    }
+
+    for (UINTN i = 0; i < handle_count; ++i) {
+        EFI_SIMPLE_FILE_SYSTEM_PROTOCOL *fs = NULL;
+        status = bs->HandleProtocol(handles[i], &gEfiSimpleFileSystemProtocolGuid, (void **)&fs);
+        if (EFI_ERROR(status)) {
+            continue;
+        }
+
+        EFI_FILE_PROTOCOL *root = NULL;
+        status = fs->OpenVolume(fs, &root);
+        if (EFI_ERROR(status)) {
+            continue;
+        }
+
+        status = load_kernel(system_table, root, &kernel_location, &kernel_pages);
+        if (!EFI_ERROR(status)) {
+            kernel_loaded = TRUE;
+            break;
+        }
+    }
+
+    if (handles) {
+        bs->FreePool(handles);
+    }
+
+    if (!kernel_loaded) {
+        print(system_table, L"Failed to locate kernel on any filesystem\r\n");
         return status;
     }
 
+kernel_loaded:
+    {
     const kernel_bootinfo_t *boot_info = (const kernel_bootinfo_t *)(UINTN)kernel_location;
     if (boot_info->magic != KERNEL_BOOTINFO_MAGIC) {
         print(system_table, L"Invalid kernel image (bootinfo magic mismatch)\r\n");
@@ -182,16 +241,14 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *system_tab
     UINT64 stack_top = stack_base + (KERNEL_STACK_PAGES * PAGE_SIZE);
     bs->SetMem((void *)(UINTN)stack_base, KERNEL_STACK_PAGES * PAGE_SIZE, 0);
 
+    print(system_table, L"Exiting boot services\r\n");
     status = exit_boot_services(bs, image_handle);
     if (EFI_ERROR(status)) {
         return status;
     }
 
     kernel_entry_t entry = (kernel_entry_t)(UINTN)boot_info->uefi_entry;
-    __asm__ __volatile__("cli");
-    entry();
-
-    for (;;) {
-        __asm__ __volatile__("hlt");
+    uefi_enter_kernel(entry, stack_top);
+    __builtin_unreachable();
     }
 }

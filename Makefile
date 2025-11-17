@@ -34,7 +34,7 @@ BIOS_BOOTLOADER_FILES := $(wildcard $(BIOS_BOOTLOADER_DIR)/*.asm)
 
 UEFI_DIR := bootloader/uefi
 UEFI_INCLUDE := -I$(UEFI_DIR)/include -Iinclude
-UEFI_OBJ := $(BUILD_DIR)/bootloader/uefi/main.o
+UEFI_OBJ := $(BUILD_DIR)/bootloader/uefi/main.o $(BUILD_DIR)/bootloader/uefi/enter_kernel.o
 UEFI_EFI := $(BIN_DIR)/BOOTX64.EFI
 UEFI_HEADERS := $(UEFI_DIR)/include/uefi.h
 UEFI_CFLAGS := ${CFLAGS} -fshort-wchar -mno-red-zone -fno-stack-protector -fno-ident -fpic $(UEFI_INCLUDE)
@@ -85,7 +85,11 @@ $(BIN_DIR)/os-image.bin: $(BIN_DIR)/bootloader.bin $(BIN_DIR)/kernel.bin
 os-image.bin: $(BIN_DIR)/os-image.bin
 os-image: os-image.bin
 
-$(UEFI_OBJ): $(UEFI_DIR)/main.c $(UEFI_HEADERS)
+$(BUILD_DIR)/bootloader/uefi/%.o: $(UEFI_DIR)/%.c $(UEFI_HEADERS)
+	@./scripts/create_file_path.sh $@
+	$(GCC) $(UEFI_CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/bootloader/uefi/%.o: $(UEFI_DIR)/%.S
 	@./scripts/create_file_path.sh $@
 	$(GCC) $(UEFI_CFLAGS) -c $< -o $@
 
@@ -112,8 +116,8 @@ debug: $(BUILD_DIR)/kernel.elf $(BIN_DIR)/os-image.bin
 virtualbox: $(BIN_DIR)/os-image.bin
 	@./scripts/launch.sh --virtualbox
 
-OVMF_CODE ?= /usr/share/OVMF/OVMF_CODE_4M.fd
-OVMF_VARS_TEMPLATE ?= /usr/share/OVMF/OVMF_VARS_4M.fd
+OVMF_CODE ?= firmware/OVMF_CODE_DEBUG.fd
+OVMF_VARS_TEMPLATE ?= firmware/OVMF_VARS_DEBUG.fd
 OVMF_VARS ?= $(BIN_DIR)/OVMF_VARS.fd
 
 qemu-uefi: $(DISK_IMAGE)

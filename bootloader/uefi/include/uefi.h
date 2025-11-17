@@ -95,6 +95,12 @@ typedef enum {
 } EFI_ALLOCATE_TYPE;
 
 typedef enum {
+    AllHandles,
+    ByRegisterNotify,
+    ByProtocol
+} EFI_LOCATE_SEARCH_TYPE;
+
+typedef enum {
     EfiReservedMemoryType,
     EfiLoaderCode,
     EfiLoaderData,
@@ -130,6 +136,8 @@ typedef EFI_STATUS(EFIAPI *EFI_EXIT_BOOT_SERVICES)(EFI_HANDLE, UINTN);
 typedef EFI_STATUS(EFIAPI *EFI_LOCATE_PROTOCOL)(const EFI_GUID *, void *, void **);
 typedef VOID(EFIAPI *EFI_SET_MEM)(void *, UINTN, UINT8);
 typedef VOID(EFIAPI *EFI_COPY_MEM)(void *, const void *, UINTN);
+typedef EFI_STATUS(EFIAPI *EFI_HANDLE_PROTOCOL)(EFI_HANDLE, const EFI_GUID *, void **);
+typedef EFI_STATUS(EFIAPI *EFI_LOCATE_HANDLE_BUFFER)(EFI_LOCATE_SEARCH_TYPE, const EFI_GUID *, void *, UINTN *, EFI_HANDLE **);
 
 struct EFI_BOOT_SERVICES {
     EFI_TABLE_HEADER Hdr;
@@ -149,7 +157,7 @@ struct EFI_BOOT_SERVICES {
     void *InstallProtocolInterface;
     void *ReinstallProtocolInterface;
     void *UninstallProtocolInterface;
-    void *HandleProtocol;
+    EFI_HANDLE_PROTOCOL HandleProtocol;
     void *Reserved;
     void *RegisterProtocolNotify;
     void *LocateHandle;
@@ -170,7 +178,7 @@ struct EFI_BOOT_SERVICES {
     void *OpenProtocolInformation;
     void *ProtocolsPerHandle;
     void *RegisterProtocolNotify2;
-    void *LocateHandleBuffer;
+    EFI_LOCATE_HANDLE_BUFFER LocateHandleBuffer;
     EFI_LOCATE_PROTOCOL LocateProtocol;
     void *InstallMultipleProtocolInterfaces;
     void *UninstallMultipleProtocolInterfaces;
@@ -198,6 +206,7 @@ typedef struct {
 
 typedef struct EFI_SIMPLE_FILE_SYSTEM_PROTOCOL EFI_SIMPLE_FILE_SYSTEM_PROTOCOL;
 typedef struct EFI_FILE_PROTOCOL EFI_FILE_PROTOCOL;
+typedef struct EFI_LOADED_IMAGE_PROTOCOL EFI_LOADED_IMAGE_PROTOCOL;
 
 typedef EFI_STATUS(EFIAPI *EFI_FILE_OPEN)(EFI_FILE_PROTOCOL *, EFI_FILE_PROTOCOL **, const CHAR16 *, UINT64, UINT64);
 typedef EFI_STATUS(EFIAPI *EFI_FILE_CLOSE)(EFI_FILE_PROTOCOL *);
@@ -231,6 +240,22 @@ typedef EFI_STATUS(EFIAPI *EFI_SIMPLE_FS_OPEN_VOLUME)(EFI_SIMPLE_FILE_SYSTEM_PRO
 struct EFI_SIMPLE_FILE_SYSTEM_PROTOCOL {
     UINT64 Revision;
     EFI_SIMPLE_FS_OPEN_VOLUME OpenVolume;
+};
+
+struct EFI_LOADED_IMAGE_PROTOCOL {
+    UINT32 Revision;
+    EFI_HANDLE ParentHandle;
+    EFI_SYSTEM_TABLE *SystemTable;
+    EFI_HANDLE DeviceHandle;
+    void *FilePath;
+    void *Reserved;
+    UINT32 LoadOptionsSize;
+    void *LoadOptions;
+    void *ImageBase;
+    UINT64 ImageSize;
+    EFI_MEMORY_TYPE ImageCodeType;
+    EFI_MEMORY_TYPE ImageDataType;
+    EFI_STATUS(EFIAPI *Unload)(EFI_HANDLE ImageHandle);
 };
 
 typedef struct {
