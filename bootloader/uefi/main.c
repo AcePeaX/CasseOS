@@ -157,6 +157,10 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *system_tab
     UINTN kernel_pages = 0;
     int kernel_loaded = FALSE;
 
+    EFI_GRAPHICS_OUTPUT_PROTOCOL *gop = NULL;
+    EFI_GUID gopGuid = {0x9042a9de,0x23dc,0x4a38,{0x96,0xfb,0x7a,0xde,0xd0,0x80,0x51,0x6a}};
+    bs->LocateProtocol(&gopGuid, NULL, (void **)&gop);
+
     status = bs->LocateHandleBuffer(ByProtocol, &gEfiSimpleFileSystemProtocolGuid,
                                     NULL, &handle_count, &handles);
     if (EFI_ERROR(status)) {
@@ -232,6 +236,22 @@ kernel_loaded:
         return EFI_LOAD_ERROR;
     }
     boot_info->flags |= KERNEL_BOOTINFO_FLAG_UEFI;
+    if (gop && gop->Mode && gop->Mode->Info) {
+        boot_info->flags |= KERNEL_BOOTINFO_FLAG_FRAMEBUFFER;
+        boot_info->fb_base = gop->Mode->FrameBufferBase;
+        boot_info->fb_size = gop->Mode->FrameBufferSize;
+        boot_info->fb_width = gop->Mode->Info->HorizontalResolution;
+        boot_info->fb_height = gop->Mode->Info->VerticalResolution;
+        boot_info->fb_stride = gop->Mode->Info->PixelsPerScanLine;
+        boot_info->fb_bpp = 32; /* GOP typically exposes 32-bit BGRA */
+    } else {
+        boot_info->fb_base = 0;
+        boot_info->fb_size = 0;
+        boot_info->fb_width = 0;
+        boot_info->fb_height = 0;
+        boot_info->fb_stride = 0;
+        boot_info->fb_bpp = 0;
+    }
 
     EFI_PHYSICAL_ADDRESS stack_base = 0;
     status = bs->AllocatePages(AllocateAnyPages, EfiLoaderData, KERNEL_STACK_PAGES, &stack_base);
