@@ -68,6 +68,7 @@ mcopy -i "${ESP_IMAGE}" "${UEFI_BINARY}" ::/EFI/BOOT/BOOTX64.EFI >/dev/null
 
 cat > "${STARTUP_SCRIPT}" <<'EOF'
 fs0:
+bcfg boot add 0 fs0:\EFI\BOOT\BOOTX64.EFI "CasseOS"
 \EFI\BOOT\BOOTX64.EFI
 EOF
 mcopy -i "${ESP_IMAGE}" "${STARTUP_SCRIPT}" ::/startup.nsh >/dev/null
