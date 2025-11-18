@@ -12,7 +12,7 @@
 2. [x] **Loader Updates**
    - Locate GOP via `bs->LocateProtocol`.
    - Record framebuffer metadata and set the framebuffer flag before `ExitBootServices`.
-3. **Kernel Detection**
+3. [x] **Kernel Detection**
    - Read the new boot-info flag.
    - If framebuffer present, initialize the framebuffer console; otherwise keep using VGA text.
 4. **Bitmap Font**

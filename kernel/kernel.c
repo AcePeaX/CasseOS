@@ -12,6 +12,7 @@
 #include "drivers/pci.h"
 #include "drivers/usb/usb.h"
 #include "kernel/include/kernel/bootinfo.h"
+#include "drivers/screen/framebuffer_console.h"
 
 extern kernel_bootinfo_t kernel_bootinfo;
 
@@ -21,10 +22,13 @@ void kernel_main() {
     if ((kernel_bootinfo.flags & KERNEL_BOOTINFO_FLAG_UEFI) == 0) {
         irq_install();
     }
-    if (kernel_bootinfo.flags & KERNEL_BOOTINFO_FLAG_UEFI) {
-        screen_set_available(false);
+    bool fb_ready = framebuffer_console_init(&kernel_bootinfo);
+    if (!fb_ready) {
+        screen_set_available(true);
     }
-    screen_draw_rect(50, 50, 200, 200, 0x00FF0000); /* BGR: red */
+    if (fb_ready) {
+        screen_draw_rect(50, 50, 200, 200, 0x00FF0000); /* BGR: red */
+    }
     if (screen_is_available()) {
         clear_screen();
     }
