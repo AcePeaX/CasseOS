@@ -13,7 +13,16 @@ int get_offset(int col, int row);
 int get_vga_offset_row(int offset);
 int get_vga_offset_col(int offset);
 
+static bool screen_available = true;
 bool screen_auto_cursor = true;
+
+void screen_set_available(bool available) {
+    screen_available = available;
+}
+
+bool screen_is_available(void) {
+    return screen_available;
+}
 
 void set_auto_cursor(bool auto_cursor){
     screen_auto_cursor=auto_cursor;
@@ -31,6 +40,9 @@ bool get_auto_cursor(){
  * If col, row, are negative, we will use the current offset
  */
 void kprint_at(char *message, int col, int row) {
+    if (!screen_available) {
+        return;
+    }
     /* Set cursor if col/row are negative */
     int offset;
     if (col >= 0 && row >= 0)
@@ -52,10 +64,16 @@ void kprint_at(char *message, int col, int row) {
 }
 
 void kprint(char *message) {
+    if (!screen_available) {
+        return;
+    }
     kprint_at(message, -1, -1);
 }
 
 void kprint_backspace() {
+    if (!screen_available) {
+        return;
+    }
     int offset = get_cursor_offset()-2;
     int row = get_vga_offset_row(offset);
     int col = get_vga_offset_col(offset);
@@ -78,6 +96,9 @@ void kprint_backspace() {
  * Sets the video cursor to the returned offset
  */
 int print_char(char c, int col, int row, char attr) {
+    if (!screen_available) {
+        return get_offset(col, row);
+    }
     unsigned char *vidmem = (unsigned char*) VIDEO_ADDRESS;
     if (!attr) attr = WHITE_ON_BLACK;
 
@@ -123,6 +144,9 @@ int print_char(char c, int col, int row, char attr) {
 }
 
 int get_cursor_offset() {
+    if (!screen_available) {
+        return 0;
+    }
     /* Use the VGA ports to get the current cursor position
      * 1. Ask for high byte of the cursor offset (data 14)
      * 2. Ask for low byte (data 15)
@@ -135,6 +159,9 @@ int get_cursor_offset() {
 }
 
 void set_cursor_offset(int offset) {
+    if (!screen_available) {
+        return;
+    }
     /* Similar to get_cursor_offset, but instead of reading we write data */
     offset /= 2;
     port_byte_out(REG_SCREEN_CTRL, 14);
@@ -144,6 +171,9 @@ void set_cursor_offset(int offset) {
 }
 
 void clear_screen() {
+    if (!screen_available) {
+        return;
+    }
     int screen_size = MAX_COLS * MAX_ROWS;
     int i;
     char *screen = VIDEO_ADDRESS;
@@ -162,6 +192,9 @@ int get_vga_offset_col(int offset) { return (offset - (get_vga_offset_row(offset
 
 
 void printf(const char *format, ...) {
+    if (!screen_available) {
+        return;
+    }
     va_list args; // List of variable arguments
     va_start(args, format); // Initialize the list with the format string
 

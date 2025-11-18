@@ -20,6 +20,29 @@ static const EFI_GUID gEfiLoadedImageProtocolGuid = {
     0x5b1b31a1, 0x9562, 0x11d2, {0x8e, 0x3f, 0x00, 0xa0, 0xc9, 0x69, 0x72, 0x3b}
 };
 
+static kernel_bootinfo_t *find_kernel_bootinfo(EFI_PHYSICAL_ADDRESS image, UINTN image_size) {
+    if (image_size < sizeof(kernel_bootinfo_t)) {
+        return NULL;
+    }
+    UINT8 *bytes = (UINT8 *)(UINTN)image;
+    UINTN search_window = (image_size < 0x8000) ? image_size : 0x8000;
+    UINTN max_steps = (search_window > sizeof(kernel_bootinfo_t)) ?
+                      (search_window - sizeof(kernel_bootinfo_t)) : 0;
+    UINTN offset = image_size - sizeof(kernel_bootinfo_t);
+    while (1) {
+        kernel_bootinfo_t *candidate = (kernel_bootinfo_t *)(bytes + offset);
+        if (candidate->magic == KERNEL_BOOTINFO_MAGIC) {
+            return candidate;
+        }
+        if (offset == 0 || max_steps == 0) {
+            break;
+        }
+        --offset;
+        --max_steps;
+    }
+    return NULL;
+}
+
 static void print(EFI_SYSTEM_TABLE *system_table, const CHAR16 *message) {
     EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL *console = system_table->ConOut;
     if (console && console->OutputString) {
@@ -149,7 +172,7 @@ static EFI_STATUS exit_boot_services(EFI_BOOT_SERVICES *bs,
 }
 
 typedef void (*kernel_entry_t)(void);
-extern void uefi_enter_kernel(kernel_entry_t entry, UINT64 stack_top) __attribute__((noreturn));
+extern void uefi_enter_kernel(kernel_entry_t entry, UINT64 stack_top, kernel_bootinfo_t *boot_info) __attribute__((noreturn));
 
 EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *system_table) {
     print(system_table, L"CasseOS UEFI loader starting...\r\n");
@@ -234,7 +257,11 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *system_tab
 
 kernel_loaded:
     {
-    kernel_bootinfo_t *boot_info = (kernel_bootinfo_t *)((UINT8 *)(UINTN)kernel_location + kernel_file_size - sizeof(kernel_bootinfo_t));
+    kernel_bootinfo_t *boot_info = find_kernel_bootinfo(kernel_location, kernel_file_size);
+    if (boot_info == NULL) {
+        print(system_table, L"Failed to locate kernel bootinfo block\r\n");
+        return EFI_LOAD_ERROR;
+    }
     if (boot_info->magic != KERNEL_BOOTINFO_MAGIC) {
         print(system_table, L"Invalid kernel image (bootinfo magic mismatch)\r\n");
         return EFI_LOAD_ERROR;
@@ -273,7 +300,7 @@ kernel_loaded:
     }
 
     kernel_entry_t entry = (kernel_entry_t)(UINTN)boot_info->uefi_entry;
-    uefi_enter_kernel(entry, stack_top);
+    uefi_enter_kernel(entry, stack_top, boot_info);
     __builtin_unreachable();
     }
 }

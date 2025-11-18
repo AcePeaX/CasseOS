@@ -5,4 +5,6 @@ uefi_enter_kernel:
     cli
     mov %rsi, %rsp
     mov %rsi, %rbp
-    jmp *%rdi
+    mov %rdi, %rax
+    mov %rdx, %rdi
+    jmp *%rax

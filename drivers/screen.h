@@ -27,4 +27,7 @@ int get_vga_offset_col(int offset);
 
 void printf(const char *format, ...);
 
+void screen_set_available(bool available);
+bool screen_is_available(void);
+
 #endif

@@ -34,6 +34,7 @@ This document describes the architecture for a GOP-based framebuffer console and
    EFI_GUID gopGuid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
    EFI_STATUS status = bs->LocateProtocol(&gopGuid, NULL, (void **)&gop);
    ```
+   The official structure layout (with the embedded `EFI_PIXEL_BITMASK`) and additional discussion about mode handling live on the [OSDev GOP page](https://wiki.osdev.org/GOP); double-checking against that reference avoids field-offset mistakes.
 2. Record framebuffer base, size, resolution, and stride in the boot info structure before `ExitBootServices`.
 3. Pass these values to the kernel via the existing boot-info struct so the kernel can access the framebuffer after the loader exits.
 

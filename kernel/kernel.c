@@ -10,6 +10,7 @@
 #include "drivers/keyboard/keyboard.h"
 #include "shell/shell.h"
 #include "drivers/pci.h"
+#include "drivers/usb/usb.h"
 #include "kernel/include/kernel/bootinfo.h"
 
 extern kernel_bootinfo_t kernel_bootinfo;
@@ -44,10 +45,15 @@ void kernel_main() {
     if ((kernel_bootinfo.flags & KERNEL_BOOTINFO_FLAG_UEFI) == 0) {
         irq_install();
     }
+    if (kernel_bootinfo.flags & KERNEL_BOOTINFO_FLAG_UEFI) {
+        screen_set_available(false);
+    }
     if (kernel_bootinfo.flags & KERNEL_BOOTINFO_FLAG_FRAMEBUFFER) {
         framebuffer_fill_rect(50, 50, 200, 200, 0x00FF0000); /* BGR: red */
     }
-    clear_screen();
+    if (screen_is_available()) {
+        clear_screen();
+    }
     pci_scan();
     pci_scan_for_usb_controllers();
     usb_enumerate_devices();

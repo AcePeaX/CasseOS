@@ -130,6 +130,17 @@ qemu-uefi: $(DISK_IMAGE)
 		-drive format=raw,file=$(DISK_IMAGE) \
 		-net none $(EXTRA_QEMU_FLAGS)
 
+debug-uefi: $(BUILD_DIR)/kernel.elf $(DISK_IMAGE)
+	@if [ ! -f "$(OVMF_CODE)" ]; then echo "Missing OVMF_CODE at $(OVMF_CODE). Override the variable to point to your OVMF_CODE.fd."; exit 1; fi
+	@if [ ! -f "$(OVMF_VARS_TEMPLATE)" ] && [ ! -f "$(OVMF_VARS)" ]; then echo "Missing OVMF_VARS template at $(OVMF_VARS_TEMPLATE). Override OVMF_VARS_TEMPLATE or place a vars file at $(OVMF_VARS)."; exit 1; fi
+	@if [ ! -f "$(OVMF_VARS)" ] && [ -f "$(OVMF_VARS_TEMPLATE)" ]; then cp "$(OVMF_VARS_TEMPLATE)" "$(OVMF_VARS)"; fi
+	@$(QEMU) -cpu qemu64 \
+		-drive if=pflash,format=raw,unit=0,file=$(OVMF_CODE),readonly=on \
+		-drive if=pflash,format=raw,unit=1,file=$(OVMF_VARS) \
+		-drive format=raw,file=$(DISK_IMAGE) \
+		-net none -monitor stdio -display sdl -s -S $(EXTRA_QEMU_FLAGS) &
+	@${GDB} -ex "target remote localhost:1234" -ex "symbol-file $(BUILD_DIR)/kernel.elf"
+
 num_sectors: $(BIN_DIR)/kernel.bin
 	@KERNEL_BIN_PATH=$(BIN_DIR)/kernel.bin ./scripts/num_sectors.sh
 
