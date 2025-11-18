@@ -1,9 +1,12 @@
 #include <stdarg.h>
+#include <stdint.h>
 #include "screen.h"
 #include "cpu/ports.h"
 #include "libc/string.h"
 #include "libc/mem.h"
+#include "kernel/include/kernel/bootinfo.h"
 
+extern kernel_bootinfo_t kernel_bootinfo;
 
 /* Declaration of private functions */
 int get_cursor_offset();
@@ -22,6 +25,31 @@ void screen_set_available(bool available) {
 
 bool screen_is_available(void) {
     return screen_available;
+}
+
+bool screen_draw_rect(uint32_t x, uint32_t y, uint32_t width, uint32_t height, uint32_t color) {
+    if ((kernel_bootinfo.flags & KERNEL_BOOTINFO_FLAG_FRAMEBUFFER) == 0) {
+        return false;
+    }
+
+    uint32_t fb_width = kernel_bootinfo.fb_width;
+    uint32_t fb_height = kernel_bootinfo.fb_height;
+    uint32_t stride = kernel_bootinfo.fb_stride;
+    if (fb_width == 0 || fb_height == 0 || stride == 0) {
+        return false;
+    }
+
+    uint32_t max_x = (x + width > fb_width) ? fb_width : x + width;
+    uint32_t max_y = (y + height > fb_height) ? fb_height : y + height;
+    volatile uint32_t *fb = (volatile uint32_t *)(uintptr_t)kernel_bootinfo.fb_base;
+
+    for (uint32_t row = y; row < max_y; ++row) {
+        volatile uint32_t *line = fb + row * stride + x;
+        for (uint32_t col = x; col < max_x; ++col) {
+            line[col - x] = color;
+        }
+    }
+    return true;
 }
 
 void set_auto_cursor(bool auto_cursor){

@@ -12,6 +12,7 @@
 #define REG_SCREEN_DATA 0x3d5
 
 #include <stdbool.h>
+#include <stdint.h>
 
 /* Public kernel API */
 void clear_screen();
@@ -29,5 +30,7 @@ void printf(const char *format, ...);
 
 void screen_set_available(bool available);
 bool screen_is_available(void);
+
+bool screen_draw_rect(uint32_t x, uint32_t y, uint32_t width, uint32_t height, uint32_t color);
 
 #endif
