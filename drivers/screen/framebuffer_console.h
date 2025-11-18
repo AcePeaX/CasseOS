@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "kernel/include/kernel/bootinfo.h"
+#include "font8x16.h"
 
 typedef struct {
     volatile uint32_t *base;
@@ -12,6 +13,9 @@ typedef struct {
     uint32_t height;
     uint32_t stride;
     uint32_t bpp;
+    const uint8_t (*font)[FRAMEBUFFER_FONT_HEIGHT];
+    uint32_t glyph_width;
+    uint32_t glyph_height;
 } framebuffer_console_t;
 
 bool framebuffer_console_init(const kernel_bootinfo_t *bootinfo);

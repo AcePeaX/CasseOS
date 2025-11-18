@@ -15,7 +15,7 @@
 3. [x] **Kernel Detection**
    - Read the new boot-info flag.
    - If framebuffer present, initialize the framebuffer console; otherwise keep using VGA text.
-4. **Bitmap Font**
+4. [x] **Bitmap Font**
    - Embed an 8×16 public-domain font as a static array (`font[256][16]`).
    - Provide a helper to fetch glyph bitmaps by ASCII code.
 5. **Blitting Routine**

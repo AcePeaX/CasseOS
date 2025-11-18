@@ -27,6 +27,9 @@ bool framebuffer_console_init(const kernel_bootinfo_t *bootinfo) {
     fb_console.height = bootinfo->fb_height;
     fb_console.stride = bootinfo->fb_stride;
     fb_console.bpp = bootinfo->fb_bpp;
+    fb_console.font = framebuffer_font8x16;
+    fb_console.glyph_width = FRAMEBUFFER_FONT_WIDTH;
+    fb_console.glyph_height = FRAMEBUFFER_FONT_HEIGHT;
     fb_console_ready = true;
 
     /* Disable VGA text rendering once the framebuffer console is ready. */
