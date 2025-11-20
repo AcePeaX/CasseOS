@@ -41,6 +41,7 @@ static fb_console_state_t fb_console_state = {
     .bg_color = 0x00000000,
 };
 
+
 static bool fb_console_use(void);
 static void fb_console_clear(void);
 static void fb_console_scroll(void);
@@ -605,4 +606,12 @@ static int fb_console_print_char(char c, int col, int row) {
     fb_console_state.cursor_col = (col < 0) ? 0 : (uint32_t)col;
     fb_console_state.cursor_row = (row < 0) ? 0 : (uint32_t)row;
     return 2 * (row * cols + col);
+}
+
+
+uint32_t get_screen_framebuffer_cols() {
+    return fb_console_use() ? fb_console_state.cols : MAX_COLS;
+}
+uint32_t get_screen_framebuffer_rows() {
+    return fb_console_use() ? fb_console_state.rows : MAX_ROWS;
 }

@@ -19,15 +19,17 @@ extern kernel_bootinfo_t kernel_bootinfo;
 void kernel_main() {
     cpu_enable_fpu_sse();
     isr_install();
-    if ((kernel_bootinfo.flags & KERNEL_BOOTINFO_FLAG_UEFI) == 0) {
-        irq_install();
-    }
     bool fb_ready = framebuffer_console_init(&kernel_bootinfo);
     if (!fb_ready) {
         screen_set_available(true);
     }
+    if ((kernel_bootinfo.flags & KERNEL_BOOTINFO_FLAG_UEFI) == 0) {
+        irq_install();
+    }
+    
     if (screen_is_available()) {
         clear_screen();
+        printf("[DEBUG] Screen size: (%d,%d)\n",get_screen_framebuffer_cols(), get_screen_framebuffer_rows());
     }
     pci_scan();
     pci_scan_for_usb_controllers();
