@@ -21,5 +21,7 @@ typedef struct {
 bool framebuffer_console_init(const kernel_bootinfo_t *bootinfo);
 bool framebuffer_console_is_ready(void);
 const framebuffer_console_t *framebuffer_console_info(void);
+bool framebuffer_console_draw_glyph(char c, uint32_t x, uint32_t y,
+                                    uint32_t fg_color, uint32_t bg_color);
 
 #endif /* CASSEOS_DRIVERS_FRAMEBUFFER_CONSOLE_H */

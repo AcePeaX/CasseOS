@@ -28,6 +28,11 @@ void kernel_main() {
     }
     if (fb_ready) {
         screen_draw_rect(50, 50, 200, 200, 0x00FF0000); /* BGR: red */
+        for(int row = 0; row<5; row++){
+            for(char i = 'a'; i<'a'+26; i++){
+                framebuffer_console_draw_glyph(i, 500 + (i-'a'+row*2)*9, 40 + row * 16, 0x00CCCCCC, 0x00000000);
+            }
+        }
     }
     if (screen_is_available()) {
         clear_screen();
