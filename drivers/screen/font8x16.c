@@ -264,7 +264,7 @@ const uint8_t framebuffer_font8x16[256][16] = {
     [255] = { 0x00, 0x00, 0x00, 0x3E, 0x60, 0xC0, 0xC0, 0xFE, 0xC0, 0xC0, 0x60, 0x3E, 0x00, 0x00, 0x00, 0x00 },
 };
 const uint8_t *framebuffer_font_get_glyph(uint32_t codepoint) {
-    if (codepoint < 256) {
+    if (codepoint < 256) {  
         return framebuffer_font8x16[codepoint];
     }
     return framebuffer_font8x16['?'];

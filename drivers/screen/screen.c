@@ -17,12 +17,43 @@ int get_vga_offset_col(int offset);
 static bool screen_available = true;
 bool screen_auto_cursor = true;
 
+typedef struct {
+    bool active;
+    uint32_t cell_width;
+    uint32_t cell_height;
+    uint32_t cols;
+    uint32_t rows;
+    uint32_t cursor_col;
+    uint32_t cursor_row;
+    uint32_t fg_color;
+    uint32_t bg_color;
+} fb_console_state_t;
+
+static fb_console_state_t fb_console_state = {
+    .active = false,
+    .cell_width = 0,
+    .cell_height = 0,
+    .cols = 0,
+    .rows = 0,
+    .cursor_col = 0,
+    .cursor_row = 0,
+    .fg_color = 0x00FFFFFF,
+    .bg_color = 0x00000000,
+};
+
+static bool fb_console_use(void);
+static void fb_console_clear(void);
+static void fb_console_scroll(void);
+static int fb_console_print_char(char c, int col, int row);
+static void fb_console_fill_rect(uint32_t x, uint32_t y, uint32_t width,
+                                 uint32_t height, uint32_t color);
+
 void screen_set_available(bool available) {
     screen_available = available;
 }
 
 bool screen_is_available(void) {
-    return screen_available;
+    return screen_available || framebuffer_console_is_ready();
 }
 
 bool screen_draw_rect(uint32_t x, uint32_t y, uint32_t width, uint32_t height, uint32_t color) {
@@ -60,7 +91,7 @@ bool get_auto_cursor(){
  * If col, row, are negative, we will use the current offset
  */
 void kprint_at(char *message, int col, int row) {
-    if (!screen_available) {
+    if (!screen_available && !framebuffer_console_is_ready()) {
         return;
     }
     /* Set cursor if col/row are negative */
@@ -84,14 +115,14 @@ void kprint_at(char *message, int col, int row) {
 }
 
 void kprint(char *message) {
-    if (!screen_available) {
+    if (!screen_available && !framebuffer_console_is_ready()) {
         return;
     }
     kprint_at(message, -1, -1);
 }
 
 void kprint_backspace() {
-    if (!screen_available) {
+    if (!screen_available && !framebuffer_console_is_ready()) {
         return;
     }
     int offset = get_cursor_offset()-2;
@@ -116,6 +147,13 @@ void kprint_backspace() {
  * Sets the video cursor to the returned offset
  */
 int print_char(char c, int col, int row, char attr) {
+    if (framebuffer_console_is_ready() && fb_console_use()) {
+        int offset = fb_console_print_char(c, col, row);
+        if (screen_auto_cursor) {
+            set_cursor_offset(offset);
+        }
+        return offset;
+    }
     if (!screen_available) {
         return get_offset(col, row);
     }
@@ -164,6 +202,14 @@ int print_char(char c, int col, int row, char attr) {
 }
 
 int get_cursor_offset() {
+    if (framebuffer_console_is_ready() && fb_console_use()) {
+        int cols = (int)fb_console_state.cols;
+        if (cols <= 0) {
+            return 0;
+        }
+        int index = (int)(fb_console_state.cursor_row * cols + fb_console_state.cursor_col);
+        return index * 2;
+    }
     if (!screen_available) {
         return 0;
     }
@@ -179,6 +225,27 @@ int get_cursor_offset() {
 }
 
 void set_cursor_offset(int offset) {
+    if (framebuffer_console_is_ready() && fb_console_use()) {
+        if (offset < 0) offset = 0;
+        int cols = (int)fb_console_state.cols;
+        if (cols <= 0) {
+            return;
+        }
+        int index = offset / 2;
+        int row = index / cols;
+        int col = index % cols;
+        if (row < 0) row = 0;
+        if (col < 0) col = 0;
+        if (row >= (int)fb_console_state.rows) {
+            row = (int)fb_console_state.rows - 1;
+        }
+        if (col >= (int)fb_console_state.cols) {
+            col = (int)fb_console_state.cols - 1;
+        }
+        fb_console_state.cursor_row = (uint32_t)row;
+        fb_console_state.cursor_col = (uint32_t)col;
+        return;
+    }
     if (!screen_available) {
         return;
     }
@@ -191,6 +258,10 @@ void set_cursor_offset(int offset) {
 }
 
 void clear_screen() {
+    if (framebuffer_console_is_ready() && fb_console_use()) {
+        fb_console_clear();
+        return;
+    }
     if (!screen_available) {
         return;
     }
@@ -206,13 +277,49 @@ void clear_screen() {
 }
 
 
-int get_offset(int col, int row) { return 2 * (row * MAX_COLS + col); }
-int get_vga_offset_row(int offset) { return offset / (2 * MAX_COLS); }
-int get_vga_offset_col(int offset) { return (offset - (get_vga_offset_row(offset)*2*MAX_COLS))/2; }
+int get_offset(int col, int row) {
+    if (framebuffer_console_is_ready() && fb_console_use()) {
+        if (col < 0) col = 0;
+        if (row < 0) row = 0;
+        int cols = (int)fb_console_state.cols;
+        int rows = (int)fb_console_state.rows;
+        if (cols <= 0 || rows <= 0) {
+            return 0;
+        }
+        if (col >= cols) col = cols - 1;
+        if (row >= rows) row = rows - 1;
+        return 2 * (row * cols + col);
+    }
+    return 2 * (row * MAX_COLS + col);
+}
+
+int get_vga_offset_row(int offset) {
+    if (framebuffer_console_is_ready() && fb_console_use()) {
+        int cols = (int)fb_console_state.cols;
+        if (cols <= 0) {
+            return 0;
+        }
+        int index = offset / 2;
+        return index / cols;
+    }
+    return offset / (2 * MAX_COLS);
+}
+
+int get_vga_offset_col(int offset) {
+    if (framebuffer_console_is_ready() && fb_console_use()) {
+        int cols = (int)fb_console_state.cols;
+        if (cols <= 0) {
+            return 0;
+        }
+        int index = offset / 2;
+        return index % cols;
+    }
+    return (offset - (get_vga_offset_row(offset)*2*MAX_COLS))/2;
+}
 
 
 void printf(const char *format, ...) {
-    if (!screen_available) {
+    if (!screen_available && !framebuffer_console_is_ready()) {
         return;
     }
     va_list args; // List of variable arguments
@@ -311,4 +418,191 @@ void printf(const char *format, ...) {
     va_end(args); // Clean up
 
     kprint(buffer); // Print the formatted string
+}
+
+static bool fb_console_use(void) {
+    if (!framebuffer_console_is_ready()) {
+        fb_console_state.active = false;
+        return false;
+    }
+
+    const framebuffer_console_t *fb = framebuffer_console_info();
+    if (!fb) {
+        fb_console_state.active = false;
+        return false;
+    }
+
+    uint32_t glyph_w = fb->glyph_width;
+    uint32_t glyph_h = fb->glyph_height;
+    if (glyph_w == 0 || glyph_h == 0) {
+        fb_console_state.active = false;
+        return false;
+    }
+
+    uint32_t cell_width = glyph_w + 1;   /* 9-pixel horizontal spacing */
+    uint32_t cell_height = glyph_h;      /* 16-pixel vertical spacing */
+    uint32_t cols = fb->width / cell_width;
+    uint32_t rows = fb->height / cell_height;
+    if (cols == 0 || rows == 0) {
+        fb_console_state.active = false;
+        return false;
+    }
+
+    if (!fb_console_state.active) {
+        fb_console_state.cursor_col = 0;
+        fb_console_state.cursor_row = 0;
+        fb_console_state.fg_color = 0x00FFFFFF;
+        fb_console_state.bg_color = 0x00000000;
+    } else {
+        if (fb_console_state.cursor_col >= cols) {
+            fb_console_state.cursor_col = cols - 1;
+        }
+        if (fb_console_state.cursor_row >= rows) {
+            fb_console_state.cursor_row = rows - 1;
+        }
+    }
+
+    fb_console_state.cell_width = cell_width;
+    fb_console_state.cell_height = cell_height;
+    fb_console_state.cols = cols;
+    fb_console_state.rows = rows;
+    fb_console_state.active = true;
+    return true;
+}
+
+static void fb_console_fill_rect(uint32_t x, uint32_t y, uint32_t width,
+                                 uint32_t height, uint32_t color) {
+    const framebuffer_console_t *fb = framebuffer_console_info();
+    if (!fb || width == 0 || height == 0) {
+        return;
+    }
+
+    if (x >= fb->width || y >= fb->height) {
+        return;
+    }
+
+    if (x + width > fb->width) {
+        width = fb->width - x;
+    }
+    if (y + height > fb->height) {
+        height = fb->height - y;
+    }
+
+    for (uint32_t row = 0; row < height; ++row) {
+        volatile uint32_t *line = fb->base + (y + row) * fb->stride + x;
+        for (uint32_t col = 0; col < width; ++col) {
+            line[col] = color;
+        }
+    }
+}
+
+static void fb_console_clear(void) {
+    if (!fb_console_use()) {
+        return;
+    }
+    uint32_t width = fb_console_state.cols * fb_console_state.cell_width;
+    uint32_t height = fb_console_state.rows * fb_console_state.cell_height;
+    fb_console_fill_rect(0, 0, width, height, fb_console_state.bg_color);
+    fb_console_state.cursor_col = 0;
+    fb_console_state.cursor_row = 0;
+}
+
+static void fb_console_scroll(void) {
+    if (!fb_console_use()) {
+        return;
+    }
+
+    const framebuffer_console_t *fb = framebuffer_console_info();
+    if (!fb) {
+        return;
+    }
+
+    uint32_t cols = fb_console_state.cols;
+    uint32_t rows = fb_console_state.rows;
+    if (cols == 0 || rows == 0) {
+        return;
+    }
+
+    uint32_t active_width = cols * fb_console_state.cell_width;
+    uint32_t step = fb_console_state.cell_height;
+    if (active_width == 0 || step == 0) {
+        return;
+    }
+
+    uint32_t copy_height = (rows - 1) * step;
+    for (uint32_t y = 0; y < copy_height; ++y) {
+        volatile uint32_t *dest = fb->base + y * fb->stride;
+        volatile uint32_t *src = fb->base + (y + step) * fb->stride;
+        for (uint32_t x = 0; x < active_width; ++x) {
+            dest[x] = src[x];
+        }
+    }
+
+    for (uint32_t y = copy_height; y < copy_height + step && y < fb->height; ++y) {
+        volatile uint32_t *line = fb->base + y * fb->stride;
+        for (uint32_t x = 0; x < active_width; ++x) {
+            line[x] = fb_console_state.bg_color;
+        }
+    }
+
+    fb_console_state.cursor_row = rows - 1;
+    fb_console_state.cursor_col = 0;
+}
+
+static int fb_console_print_char(char c, int col, int row) {
+    if (!fb_console_use()) {
+        return 0;
+    }
+
+    if (col < 0 || row < 0) {
+        col = (int)fb_console_state.cursor_col;
+        row = (int)fb_console_state.cursor_row;
+    }
+
+    int cols = (int)fb_console_state.cols;
+    int rows = (int)fb_console_state.rows;
+    if (cols <= 0 || rows <= 0) {
+        return 0;
+    }
+
+    const framebuffer_console_t *fb = framebuffer_console_info();
+    if (!fb) {
+        return 0;
+    }
+
+    if (c == '\n') {
+        col = 0;
+        row += 1;
+    } else {
+        uint32_t px = (uint32_t)col * fb_console_state.cell_width;
+        uint32_t py = (uint32_t)row * fb_console_state.cell_height;
+        unsigned char glyph = (unsigned char)c;
+        if (glyph == 0) {
+            glyph = ' ';
+        }
+        framebuffer_console_draw_glyph((char)glyph, px, py,
+                                       fb_console_state.fg_color,
+                                       fb_console_state.bg_color);
+        if (fb_console_state.cell_width > fb->glyph_width) {
+            uint32_t gap_width = fb_console_state.cell_width - fb->glyph_width;
+            fb_console_fill_rect(px + fb->glyph_width, py, gap_width,
+                                 fb_console_state.cell_height,
+                                 fb_console_state.bg_color);
+        }
+        col++;
+    }
+
+    if (col >= cols) {
+        col = 0;
+        row++;
+    }
+
+    if (row >= rows) {
+        fb_console_scroll();
+        row = rows - 1;
+    }
+
+    fb_console_state.cursor_col = (col < 0) ? 0 : (uint32_t)col;
+    fb_console_state.cursor_row = (row < 0) ? 0 : (uint32_t)row;
+    return 2 * (row * cols + col);
 }
