@@ -53,9 +53,9 @@ OBJ := $(patsubst %.c, $(BUILD_DIR)/%.o, $(C_SOURCES) $(BUILD_DIR)/cpu/interrupt
 # -g: Use debugging symbols in gcc
 CFLAGS = -g -ffreestanding -Wall -Wextra -fno-exceptions -m64 -I. -O2
 LDFLAGS = -T linker.ld
-QEMUFLAGS = -device piix3-usb-uhci \
-		#-machine pc \
-		#-device usb-kbd \
+QEMUFLAGS = -machine pc \
+		-device piix3-usb-uhci \
+		-device usb-kbd \
 		# -device usb-mouse \
 		#-trace usb_uhci
 EXTRA_QEMU_FLAGS ?=
@@ -125,6 +125,7 @@ qemu-uefi: $(DISK_IMAGE)
 	@if [ ! -f "$(OVMF_VARS_TEMPLATE)" ] && [ ! -f "$(OVMF_VARS)" ]; then echo "Missing OVMF_VARS template at $(OVMF_VARS_TEMPLATE). Override OVMF_VARS_TEMPLATE or place a vars file at $(OVMF_VARS)."; exit 1; fi
 	@if [ ! -f "$(OVMF_VARS)" ] && [ -f "$(OVMF_VARS_TEMPLATE)" ]; then cp "$(OVMF_VARS_TEMPLATE)" "$(OVMF_VARS)"; fi
 	@$(QEMU) -cpu qemu64 \
+		$(QEMUFLAGS) \
 		-drive if=pflash,format=raw,unit=0,file=$(OVMF_CODE),readonly=on \
 		-drive if=pflash,format=raw,unit=1,file=$(OVMF_VARS) \
 		-drive format=raw,file=$(DISK_IMAGE) \
