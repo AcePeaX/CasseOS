@@ -23,9 +23,7 @@ void kernel_main() {
     if (!fb_ready) {
         screen_set_available(true);
     }
-    if ((kernel_bootinfo.flags & KERNEL_BOOTINFO_FLAG_UEFI) == 0) {
-        irq_install();
-    }
+    irq_install();
     
     if (screen_is_available()) {
         clear_screen();
