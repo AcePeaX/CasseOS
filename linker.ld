@@ -7,7 +7,6 @@ MEMORY
 
 SECTIONS
 {
-    /* Code (text) section */
     .text : {
         *(.text*)
     } > RAM
@@ -20,6 +19,10 @@ SECTIONS
     /* Initialized data (data) section */
     .data : {
         *(.data*)
+    } > RAM
+
+    .bootinfo : {
+        KEEP(*(.bootinfo))
     } > RAM
 
     /* Uninitialized data (bss) section */

@@ -12,6 +12,7 @@
 #define REG_SCREEN_DATA 0x3d5
 
 #include <stdbool.h>
+#include <stdint.h>
 
 /* Public kernel API */
 void clear_screen();
@@ -26,5 +27,13 @@ int get_vga_offset_row(int offset);
 int get_vga_offset_col(int offset);
 
 void printf(const char *format, ...);
+
+void screen_set_available(bool available);
+bool screen_is_available(void);
+
+bool screen_draw_rect(uint32_t x, uint32_t y, uint32_t width, uint32_t height, uint32_t color);
+
+uint32_t get_screen_framebuffer_cols();
+uint32_t get_screen_framebuffer_rows();
 
 #endif
