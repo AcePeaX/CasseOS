@@ -10,6 +10,7 @@
 #include "drivers/keyboard/keyboard.h"
 #include "shell/shell.h"
 #include "drivers/pci.h"
+#include "drivers/block/ahci.h"
 #include "drivers/usb/usb.h"
 #include "kernel/include/kernel/bootinfo.h"
 #include "drivers/screen/framebuffer_console.h"
@@ -30,6 +31,7 @@ void kernel_main() {
         printf("[DEBUG] Screen size: (%d,%d)\n",get_screen_framebuffer_cols(), get_screen_framebuffer_rows());
     }
     pci_scan();
+    ahci_init();
     pci_scan_for_usb_controllers();
     usb_enumerate_devices();
     kbd_subsystem_init();
