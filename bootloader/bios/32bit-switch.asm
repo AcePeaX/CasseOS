@@ -18,5 +18,7 @@ init_pm: ; we are now using 32-bit instructions
 
     mov ebp, 0x7FFFF ; 6. update the stack right at the top of the free space
     mov esp, ebp
+    and esp, 0xFFFFFFF0 ; keep stack 16-byte aligned for SSE-friendly ABIs
+    mov ebp, esp
 
     call BEGIN_PM ; 7. Call a well-known label with useful code

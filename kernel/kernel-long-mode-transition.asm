@@ -4,32 +4,46 @@ paging_set_up:
 %ifndef PML4T_ADDR
 %define PML4T_ADDR 0x1000
 %endif
+%define PDPT_ADDR (PML4T_ADDR + 0x1000)
+%define PD_ADDR   (PDPT_ADDR + 0x1000)
+%define NUM_PD_TABLES 4
 %define print_protected 0x7ceb
 
-    mov edi, PML4T_ADDR     ; PML4T page address
+    mov edi, PML4T_ADDR
     mov cr3, edi
     xor eax, eax
-    rep stosd               ; Now actually zero out the page table entries
-    ; Set edi back to PML4T[0]
-    mov edi, cr3
+    mov ecx, (NUM_PD_TABLES + 2) * (4096 / 4)
+    rep stosd
 
-    mov dword[edi], 0x2003      ; Set PML4T[0] to address 0x2000 (PDPT) with flags 0x0003
-    add edi, 0x1000             ; Go to PDPT[0]
-    mov dword[edi], 0x3003      ; Set PDPT[0] to address 0x3000 (PDT) with flags 0x0003
-    add edi, 0x1000             ; Go to PDT[0]
-    mov dword[edi], 0x4003      ; Set PDT[0] to address 0x4000 (PT) with flags 0x0003
+    mov edi, PML4T_ADDR
+    mov eax, PDPT_ADDR
+    or eax, 0x3
+    mov dword [edi], eax
+    mov dword [edi + 4], 0
 
-    mov edi, 0x4000             ; Go to PT[0]
-    mov ebx, 0x00000003         ; EBX has address 0x0000 with flags 0x0003
-    mov ecx, 512                ; Do the operation 512 times
+    mov edi, PDPT_ADDR
+    mov ecx, NUM_PD_TABLES
+    mov ebx, PD_ADDR
+.fill_pdpt:
+    mov eax, ebx
+    or eax, 0x3
+    mov dword [edi], eax
+    mov dword [edi + 4], 0
+    add edi, 8
+    add ebx, 0x1000
+    loop .fill_pdpt
 
-    add_page_entry_protected:
-        ; a = address, x = index of page table, flags are entry flags
-        mov dword[edi], ebx                 ; Write ebx to PT[x] = a.append(flags)
-        add ebx, 0x1000                     ; Increment address of ebx (a+1)
-        add edi, 8                          ; Increment page table location (since entries are 8 bytes)
-                                            ; x++
-        loop add_page_entry_protected       ; Decrement ecx and loop again
+    mov edi, PD_ADDR
+    xor eax, eax
+    mov ecx, NUM_PD_TABLES * 512
+.fill_pds:
+    mov edx, eax
+    or edx, 0x83                  ; present | rw | PS
+    mov dword [edi], edx
+    mov dword [edi + 4], 0
+    add edi, 8
+    add eax, 0x200000             ; advance 2MB
+    loop .fill_pds
 
 
     ; Set up PAE paging, but don't enable it quite yet
