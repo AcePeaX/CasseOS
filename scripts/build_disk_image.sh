@@ -7,6 +7,7 @@ BIN_DIR="${REPO_ROOT}/.bin"
 BIOS_IMAGE="${BIN_DIR}/os-image.bin"
 DISK_IMAGE="${BIN_DIR}/casseos.img"
 ESP_IMAGE="${BIN_DIR}/esp-fat32.img"
+UEFI_REMOVABLE_IMAGE="${BIN_DIR}/casseos-esp.img"
 UEFI_BINARY="${BIN_DIR}/BOOTX64.EFI"
 KERNEL_BINARY="${BIN_DIR}/kernel.bin"
 KERNEL_ESP_PATH="::/CASSEKRN.BIN"
@@ -82,6 +83,7 @@ EOF
 mcopy -i "${ESP_IMAGE}" "${STARTUP_SCRIPT}" ::/startup.nsh >/dev/null
 
 dd if="${ESP_IMAGE}" of="${DISK_IMAGE}" conv=notrunc bs=${SECTOR_SIZE} seek=${PARTITION_START_LBA} status=none
+cp "${ESP_IMAGE}" "${UEFI_REMOVABLE_IMAGE}"
 
 python3 - <<'PY'
 import os
