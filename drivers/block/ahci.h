@@ -8,11 +8,67 @@
 
 #define AHCI_MAX_CONTROLLERS 8
 #define AHCI_MAX_PORTS       32
+#define AHCI_MAX_COMMAND_SLOTS 32
+#define AHCI_MAX_PRDT_ENTRIES 1
 
 #define AHCI_SIG_SATA   0x00000101
 #define AHCI_SIG_SATAPI 0xEB140101
 #define AHCI_SIG_SEMB   0xC33C0101
 #define AHCI_SIG_PM     0x96690101
+
+#define HBA_PxCMD_ST   (1u << 0)
+#define HBA_PxCMD_FRE  (1u << 4)
+#define HBA_PxCMD_FR   (1u << 14)
+#define HBA_PxCMD_CR   (1u << 15)
+
+#define HBA_PxIS_TFES  (1u << 30)
+
+#define HBA_PxTFD_BSY  (1u << 7)
+#define HBA_PxTFD_DRQ  (1u << 3)
+
+#define FIS_TYPE_REG_H2D 0x27
+
+typedef struct {
+    uint32_t dba;
+    uint32_t dbau;
+    uint32_t reserved0;
+    uint32_t dbc;
+} ahci_prdt_entry_t;
+
+typedef struct {
+    uint8_t cfis[64];
+    uint8_t acmd[16];
+    uint8_t reserved[48];
+    ahci_prdt_entry_t prdt_entry[AHCI_MAX_PRDT_ENTRIES];
+} ahci_command_table_t;
+
+typedef struct {
+    uint32_t dw0;
+    uint32_t prdbc;
+    uint32_t ctba;
+    uint32_t ctbau;
+    uint32_t reserved[4];
+} ahci_command_header_t;
+
+typedef struct {
+    uint8_t fis_type;
+    uint8_t pm_and_c;
+    uint8_t command;
+    uint8_t featurel;
+    uint8_t lba0;
+    uint8_t lba1;
+    uint8_t lba2;
+    uint8_t device;
+    uint8_t lba3;
+    uint8_t lba4;
+    uint8_t lba5;
+    uint8_t featureh;
+    uint8_t countl;
+    uint8_t counth;
+    uint8_t icc;
+    uint8_t control;
+    uint8_t reserved[4];
+} fis_reg_h2d_t;
 
 typedef volatile struct {
     uint32_t clb;    // 0x00, command list base address
@@ -54,11 +110,24 @@ typedef volatile struct {
 } ahci_hba_mem_t;
 
 typedef struct {
+    bool present;
+    bool initialized;
+    bool identify_valid;
+    volatile ahci_hba_port_t *regs;
+    ahci_command_header_t *cmd_headers;
+    ahci_command_table_t *cmd_table;
+    uint8_t *recv_fis;
+    char model[41];
+    uint64_t sector_count;
+} ahci_port_state_t;
+
+typedef struct {
     pci_device_t *pci_dev;
     uintptr_t abar;                    // Physical MMIO base of the HBA (ABAR)
     volatile ahci_hba_mem_t *hba_mem;  // Identity-mapped virtual pointer
     uint32_t implemented_ports;        // Bitmask from PI register
     uint32_t active_ports;             // Bitmask of ports with detected devices
+    ahci_port_state_t port_state[AHCI_MAX_PORTS];
 } ahci_controller_t;
 
 extern ahci_controller_t ahci_controllers[AHCI_MAX_CONTROLLERS];
