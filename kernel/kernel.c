@@ -10,7 +10,7 @@
 #include "drivers/keyboard/keyboard.h"
 #include "shell/shell.h"
 #include "drivers/pci.h"
-#include "drivers/block/ahci.h"
+#include "drivers/block/ahci/ahci.h"
 #include "drivers/usb/usb.h"
 #include "kernel/include/kernel/bootinfo.h"
 #include "drivers/screen/framebuffer_console.h"

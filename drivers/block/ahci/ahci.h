@@ -1,15 +1,15 @@
-#ifndef DRIVERS_BLOCK_AHCI_H
-#define DRIVERS_BLOCK_AHCI_H
+#ifndef DRIVERS_BLOCK_AHCI_AHCI_H
+#define DRIVERS_BLOCK_AHCI_AHCI_H
 
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
 #include "drivers/pci.h"
 
-#define AHCI_MAX_CONTROLLERS 8
-#define AHCI_MAX_PORTS       32
+#define AHCI_MAX_CONTROLLERS   8
+#define AHCI_MAX_PORTS         32
 #define AHCI_MAX_COMMAND_SLOTS 32
-#define AHCI_MAX_PRDT_ENTRIES 1
+#define AHCI_MAX_PRDT_ENTRIES  1
 
 #define AHCI_SIG_SATA   0x00000101
 #define AHCI_SIG_SATAPI 0xEB140101
@@ -27,6 +27,11 @@
 #define HBA_PxTFD_DRQ  (1u << 3)
 
 #define FIS_TYPE_REG_H2D 0x27
+
+#define PCI_CLASS_MASS_STORAGE 0x01
+#define PCI_SUBCLASS_SATA      0x06
+#define PCI_PROG_IF_AHCI       0x01
+#define AHCI_BAR_INDEX         5
 
 typedef struct {
     uint32_t dba;
@@ -71,39 +76,39 @@ typedef struct {
 } fis_reg_h2d_t;
 
 typedef volatile struct {
-    uint32_t clb;    // 0x00, command list base address
-    uint32_t clbu;   // 0x04, command list base address upper 32 bits
-    uint32_t fb;     // 0x08, FIS base address
-    uint32_t fbu;    // 0x0C, FIS base address upper 32 bits
-    uint32_t is;     // 0x10, interrupt status
-    uint32_t ie;     // 0x14, interrupt enable
-    uint32_t cmd;    // 0x18, command and status
+    uint32_t clb;
+    uint32_t clbu;
+    uint32_t fb;
+    uint32_t fbu;
+    uint32_t is;
+    uint32_t ie;
+    uint32_t cmd;
     uint32_t reserved0;
-    uint32_t tfd;    // 0x20, task file data
-    uint32_t sig;    // 0x24, signature
-    uint32_t ssts;   // 0x28, SATA status (SCR0)
-    uint32_t sctl;   // 0x2C, SATA control (SCR2)
-    uint32_t serr;   // 0x30, SATA error (SCR1)
-    uint32_t sact;   // 0x34, SATA active (SCR3)
-    uint32_t ci;     // 0x38, command issue
-    uint32_t sntf;   // 0x3C, SATA notification
-    uint32_t fbs;    // 0x40, FIS-based switch control
+    uint32_t tfd;
+    uint32_t sig;
+    uint32_t ssts;
+    uint32_t sctl;
+    uint32_t serr;
+    uint32_t sact;
+    uint32_t ci;
+    uint32_t sntf;
+    uint32_t fbs;
     uint32_t reserved1[11];
     uint32_t vendor[4];
 } ahci_hba_port_t;
 
 typedef volatile struct {
-    uint32_t cap;          // 0x00, host capability
-    uint32_t ghc;          // 0x04, global host control
-    uint32_t is;           // 0x08, interrupt status
-    uint32_t pi;           // 0x0C, port implemented
-    uint32_t vs;           // 0x10, version
-    uint32_t ccc_ctl;      // 0x14, command completion coalescing control
-    uint32_t ccc_pts;      // 0x18, command completion coalescing ports
-    uint32_t em_loc;       // 0x1C, enclosure management location
-    uint32_t em_ctl;       // 0x20, enclosure management control
-    uint32_t cap2;         // 0x24, host capabilities extended
-    uint32_t bohc;         // 0x28, BIOS/OS handoff control
+    uint32_t cap;
+    uint32_t ghc;
+    uint32_t is;
+    uint32_t pi;
+    uint32_t vs;
+    uint32_t ccc_ctl;
+    uint32_t ccc_pts;
+    uint32_t em_loc;
+    uint32_t em_ctl;
+    uint32_t cap2;
+    uint32_t bohc;
     uint8_t  reserved[0xA0 - 0x2C];
     uint8_t  vendor[0x100 - 0xA0];
     ahci_hba_port_t ports[AHCI_MAX_PORTS];
@@ -123,10 +128,10 @@ typedef struct {
 
 typedef struct {
     pci_device_t *pci_dev;
-    uintptr_t abar;                    // Physical MMIO base of the HBA (ABAR)
-    volatile ahci_hba_mem_t *hba_mem;  // Identity-mapped virtual pointer
-    uint32_t implemented_ports;        // Bitmask from PI register
-    uint32_t active_ports;             // Bitmask of ports with detected devices
+    uintptr_t abar;
+    volatile ahci_hba_mem_t *hba_mem;
+    uint32_t implemented_ports;
+    uint32_t active_ports;
     ahci_port_state_t port_state[AHCI_MAX_PORTS];
 } ahci_controller_t;
 
@@ -135,5 +140,10 @@ extern uint32_t ahci_controller_count;
 
 void ahci_init(void);
 void ahci_print_summary(void);
+
+/* Port helpers exposed across translation units */
+bool ahci_port_device_present(volatile ahci_hba_port_t *port);
+bool ahci_port_initialize(ahci_controller_t *ctrl, uint8_t port_no);
+bool ahci_port_identify(ahci_controller_t *ctrl, uint8_t port_no);
 
 #endif

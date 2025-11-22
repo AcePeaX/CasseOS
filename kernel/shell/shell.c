@@ -6,7 +6,7 @@
 #include "cpu/type.h"
 #include "libc/string.h"
 #include "drivers/usb/usb.h"
-#include "drivers/block/ahci.h"
+#include "drivers/block/ahci/ahci.h"
 
 uint8_t cursor=0;
 bool end_command = false;
