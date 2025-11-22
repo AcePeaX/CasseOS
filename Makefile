@@ -2,24 +2,24 @@
 # $< = first dependency
 # $^ = all dependencies
 
-GCC=x86_64-elf-gcc # Or /usr/local/cross/bin/x86_64-elf-gcc
+GCC=/usr/local/cross/bin/x86_64-elf-gcc
 #GCC=i386-elf-gcc or /usr/local/cross/bin/i386-elf-gcc
 #GCC="i386-elf-gcc" or /usr/local/cross/bin/i686-elf-gcc
 
-LD=x86_64-elf-ld # Or /usr/local/cross/bin/x86_64-elf-ld
+LD=/usr/local/cross/bin/x86_64-elf-ld
 #LD=i386-elf-ld or /usr/local/cross/bin/i386-elf-ld
 #LD=i686-elf-ld or /usr/local/cross/bin/i686-elf-ld
 
 UEFI_LD ?= ld
 
-GDB=x86_64-elf-gdb # Or /usr/local/cross/bin/x86_64-elf-gdb
+GDB=/usr/local/cross/bin/x86_64-elf-gdb
 #GDB=i386-elf-gdb or /usr/local/cross/bin/i386-elf-gdb
 #GDB="i686-elf-gdb" or /usr/local/cross/bin/i686-elf-gdb
 
-OBJCOPY=x86_64-elf-objcopy
+OBJCOPY=/usr/local/cross/bin/x86_64-elf-objcopy
 
 #QEMU=qemu-system-i386
-QEMU=qemu-system-x86_64
+QEMU=/usr/bin/qemu-system-x86_64
 
 KERNEL_START_MEM = 0x80000
 
@@ -29,6 +29,7 @@ AHCI_DISK_IMAGE := $(BIN_DIR)/ahci_disk.img
 AHCI_DISK_SIZE_MB ?= 64
 
 DISK_IMAGE := $(BIN_DIR)/casseos.img
+UEFI_REMOVABLE_IMAGE := $(BIN_DIR)/casseos-esp.img
 
 BIOS_BOOTLOADER_DIR := bootloader/bios
 BIOS_BOOTLOADER_SRC := $(BIOS_BOOTLOADER_DIR)/bootloader.asm
@@ -114,14 +115,18 @@ $(DISK_IMAGE): $(BIN_DIR)/os-image.bin $(UEFI_EFI) scripts/build_disk_image.sh
 disk-image: $(DISK_IMAGE)
 
 qemu-bios: $(BIN_DIR)/os-image.bin $(AHCI_DISK_IMAGE)
-	@$(QEMU) $(QEMUFLAGS) -fda $(BIN_DIR)/os-image.bin -monitor stdio -display sdl $(EXTRA_QEMU_FLAGS)
+	@$(QEMU) $(QEMUFLAGS) \
+		-drive file=$(BIN_DIR)/os-image.bin,format=raw,if=ide,index=0,media=disk \
+		-boot order=c -monitor stdio -display sdl $(EXTRA_QEMU_FLAGS)
 
 qemu: qemu-bios
 
 run: qemu -device usb-tablet
 
 debug: $(BUILD_DIR)/kernel.elf $(BIN_DIR)/os-image.bin
-	$(QEMU) $(QEMUFLAGS) -fda $(BIN_DIR)/os-image.bin -monitor stdio -display sdl -s -S &
+	$(QEMU) $(QEMUFLAGS) \
+		-drive file=$(BIN_DIR)/os-image.bin,format=raw,if=ide,index=0,media=disk \
+		-boot order=c -monitor stdio -display sdl -s -S &
 	${GDB} -ex "target remote localhost:1234" -ex "symbol-file .build/kernel.elf"
 
 virtualbox: $(BIN_DIR)/os-image.bin
@@ -131,7 +136,7 @@ OVMF_CODE ?= firmware/OVMF_CODE_DEBUG.fd
 OVMF_VARS_TEMPLATE ?= firmware/OVMF_VARS_DEBUG.fd
 OVMF_VARS ?= $(BIN_DIR)/OVMF_VARS.fd
 
-qemu-uefi: $(DISK_IMAGE) $(AHCI_DISK_IMAGE)
+qemu-uefi: $(DISK_IMAGE) $(UEFI_REMOVABLE_IMAGE) $(AHCI_DISK_IMAGE)
 	@if [ ! -f "$(OVMF_CODE)" ]; then echo "Missing OVMF_CODE at $(OVMF_CODE). Override the variable to point to your OVMF_CODE.fd."; exit 1; fi
 	@if [ ! -f "$(OVMF_VARS_TEMPLATE)" ] && [ ! -f "$(OVMF_VARS)" ]; then echo "Missing OVMF_VARS template at $(OVMF_VARS_TEMPLATE). Override OVMF_VARS_TEMPLATE or place a vars file at $(OVMF_VARS)."; exit 1; fi
 	@if [ ! -f "$(OVMF_VARS)" ] && [ -f "$(OVMF_VARS_TEMPLATE)" ]; then cp "$(OVMF_VARS_TEMPLATE)" "$(OVMF_VARS)"; fi
@@ -139,17 +144,19 @@ qemu-uefi: $(DISK_IMAGE) $(AHCI_DISK_IMAGE)
 		$(QEMUFLAGS) \
 		-drive if=pflash,format=raw,unit=0,file=$(OVMF_CODE),readonly=on \
 		-drive if=pflash,format=raw,unit=1,file=$(OVMF_VARS) \
-		-drive format=raw,file=$(DISK_IMAGE) \
+		-drive if=none,id=os_disk,file=$(UEFI_REMOVABLE_IMAGE),format=raw,readonly=on \
+		-device usb-storage,drive=os_disk \
 		-net none $(EXTRA_QEMU_FLAGS)
 
-debug-uefi: $(BUILD_DIR)/kernel.elf $(DISK_IMAGE) $(AHCI_DISK_IMAGE)
+debug-uefi: $(BUILD_DIR)/kernel.elf $(DISK_IMAGE) $(UEFI_REMOVABLE_IMAGE) $(AHCI_DISK_IMAGE)
 	@if [ ! -f "$(OVMF_CODE)" ]; then echo "Missing OVMF_CODE at $(OVMF_CODE). Override the variable to point to your OVMF_CODE.fd."; exit 1; fi
 	@if [ ! -f "$(OVMF_VARS_TEMPLATE)" ] && [ ! -f "$(OVMF_VARS)" ]; then echo "Missing OVMF_VARS template at $(OVMF_VARS_TEMPLATE). Override OVMF_VARS_TEMPLATE or place a vars file at $(OVMF_VARS)."; exit 1; fi
 	@if [ ! -f "$(OVMF_VARS)" ] && [ -f "$(OVMF_VARS_TEMPLATE)" ]; then cp "$(OVMF_VARS_TEMPLATE)" "$(OVMF_VARS)"; fi
 	@$(QEMU) -cpu qemu64 \
 		-drive if=pflash,format=raw,unit=0,file=$(OVMF_CODE),readonly=on \
 		-drive if=pflash,format=raw,unit=1,file=$(OVMF_VARS) \
-		-drive format=raw,file=$(DISK_IMAGE) \
+		-drive if=none,id=os_disk,file=$(UEFI_REMOVABLE_IMAGE),format=raw,readonly=on \
+		-device usb-storage,drive=os_disk \
 		-net none -monitor stdio -display sdl -s -S $(EXTRA_QEMU_FLAGS) &
 	@${GDB} -ex "target remote localhost:1234" -ex "symbol-file $(BUILD_DIR)/kernel.elf"
 

@@ -9,6 +9,7 @@ extern kernel_bootinfo
 
 [bits 64]
 start_kernel:
+    and rsp, 0xFFFFFFFFFFFFFFF0
     call kernel_main           ; Calls the C function. The linker will know where it is placed in memory
     jmp $
 
