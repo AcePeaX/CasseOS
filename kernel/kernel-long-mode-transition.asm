@@ -4,32 +4,49 @@ paging_set_up:
 %ifndef PML4T_ADDR
 %define PML4T_ADDR 0x1000
 %endif
+%define PDPT_ADDR   0x2000
+%define PD0_ADDR    0x3000
+%define PD1_ADDR    0x4000
+%define PD2_ADDR    0x5000
+%define PD3_ADDR    0x6000
 %define print_protected 0x7ceb
 
     mov edi, PML4T_ADDR     ; PML4T page address
     mov cr3, edi
     xor eax, eax
-    rep stosd               ; Now actually zero out the page table entries
-    ; Set edi back to PML4T[0]
+    mov ecx, (PD3_ADDR + 0x1000 - PML4T_ADDR) / 4
+    rep stosd               ; zero out PML4/PDPT/PDs
     mov edi, cr3
 
-    mov dword[edi], 0x2003      ; Set PML4T[0] to address 0x2000 (PDPT) with flags 0x0003
-    add edi, 0x1000             ; Go to PDPT[0]
-    mov dword[edi], 0x3003      ; Set PDPT[0] to address 0x3000 (PDT) with flags 0x0003
-    add edi, 0x1000             ; Go to PDT[0]
-    mov dword[edi], 0x4003      ; Set PDT[0] to address 0x4000 (PT) with flags 0x0003
+    mov dword[edi], PDPT_ADDR | 0x3      ; PML4[0] -> PDPT
 
-    mov edi, 0x4000             ; Go to PT[0]
-    mov ebx, 0x00000003         ; EBX has address 0x0000 with flags 0x0003
-    mov ecx, 512                ; Do the operation 512 times
+    mov edi, PDPT_ADDR
+    mov ebx, PD0_ADDR | 0x3
+    mov ecx, 4
+setup_pdpt_entries:
+        mov dword[edi], ebx
+        add edi, 8
+        add ebx, 0x1000
+        loop setup_pdpt_entries
 
-    add_page_entry_protected:
-        ; a = address, x = index of page table, flags are entry flags
-        mov dword[edi], ebx                 ; Write ebx to PT[x] = a.append(flags)
-        add ebx, 0x1000                     ; Increment address of ebx (a+1)
-        add edi, 8                          ; Increment page table location (since entries are 8 bytes)
-                                            ; x++
-        loop add_page_entry_protected       ; Decrement ecx and loop again
+%macro MAP_PD 2
+    mov edi, %2
+    mov ecx, 512
+    mov ebx, %1
+%%map_pd_loop:
+        mov eax, ebx
+        or eax, 0x83                 ; present, writable, 2MB page
+        mov dword[edi], eax
+        mov dword[edi+4], 0
+        add ebx, 0x200000            ; next 2MB chunk
+        add edi, 8
+        loop %%map_pd_loop
+%endmacro
+
+    MAP_PD 0x00000000, PD0_ADDR
+    MAP_PD 0x40000000, PD1_ADDR
+    MAP_PD 0x80000000, PD2_ADDR
+    MAP_PD 0xC0000000, PD3_ADDR
 
 
     ; Set up PAE paging, but don't enable it quite yet
