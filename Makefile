@@ -25,6 +25,8 @@ KERNEL_START_MEM = 0x80000
 
 BUILD_DIR := .build
 BIN_DIR := .bin
+AHCI_DISK_IMAGE := $(BIN_DIR)/ahci_disk.img
+AHCI_DISK_SIZE_MB ?= 64
 
 DISK_IMAGE := $(BIN_DIR)/casseos.img
 
@@ -56,6 +58,10 @@ LDFLAGS = -T linker.ld
 QEMUFLAGS = -machine pc \
 		-device piix3-usb-uhci \
 		-device usb-kbd \
+		-drive if=none,id=ahci_disk,file=$(AHCI_DISK_IMAGE),format=raw \
+		-device ahci,id=ahci0 \
+		-device ide-hd,drive=ahci_disk,bus=ahci0.0 \
+		# (comment AHCI lines above to disable disk) \
 		# -device usb-mouse \
 		#-trace usb_uhci
 EXTRA_QEMU_FLAGS ?=
@@ -85,6 +91,11 @@ $(BIN_DIR)/os-image.bin: $(BIN_DIR)/bootloader.bin $(BIN_DIR)/kernel.bin
 os-image.bin: $(BIN_DIR)/os-image.bin
 os-image: os-image.bin
 
+$(AHCI_DISK_IMAGE):
+	@./scripts/create_file_path.sh $@
+	@echo "Creating AHCI disk image ($@, $(AHCI_DISK_SIZE_MB) MiB)..."
+	@dd if=/dev/zero of=$@ bs=1M count=$(AHCI_DISK_SIZE_MB) status=none
+
 $(BUILD_DIR)/bootloader/uefi/%.o: $(UEFI_DIR)/%.c $(UEFI_HEADERS)
 	@./scripts/create_file_path.sh $@
 	$(GCC) $(UEFI_CFLAGS) -c $< -o $@
@@ -102,7 +113,7 @@ $(DISK_IMAGE): $(BIN_DIR)/os-image.bin $(UEFI_EFI) scripts/build_disk_image.sh
 
 disk-image: $(DISK_IMAGE)
 
-qemu-bios: $(BIN_DIR)/os-image.bin
+qemu-bios: $(BIN_DIR)/os-image.bin $(AHCI_DISK_IMAGE)
 	@$(QEMU) $(QEMUFLAGS) -fda $(BIN_DIR)/os-image.bin -monitor stdio -display sdl $(EXTRA_QEMU_FLAGS)
 
 qemu: qemu-bios
@@ -120,7 +131,7 @@ OVMF_CODE ?= firmware/OVMF_CODE_DEBUG.fd
 OVMF_VARS_TEMPLATE ?= firmware/OVMF_VARS_DEBUG.fd
 OVMF_VARS ?= $(BIN_DIR)/OVMF_VARS.fd
 
-qemu-uefi: $(DISK_IMAGE)
+qemu-uefi: $(DISK_IMAGE) $(AHCI_DISK_IMAGE)
 	@if [ ! -f "$(OVMF_CODE)" ]; then echo "Missing OVMF_CODE at $(OVMF_CODE). Override the variable to point to your OVMF_CODE.fd."; exit 1; fi
 	@if [ ! -f "$(OVMF_VARS_TEMPLATE)" ] && [ ! -f "$(OVMF_VARS)" ]; then echo "Missing OVMF_VARS template at $(OVMF_VARS_TEMPLATE). Override OVMF_VARS_TEMPLATE or place a vars file at $(OVMF_VARS)."; exit 1; fi
 	@if [ ! -f "$(OVMF_VARS)" ] && [ -f "$(OVMF_VARS_TEMPLATE)" ]; then cp "$(OVMF_VARS_TEMPLATE)" "$(OVMF_VARS)"; fi
@@ -131,7 +142,7 @@ qemu-uefi: $(DISK_IMAGE)
 		-drive format=raw,file=$(DISK_IMAGE) \
 		-net none $(EXTRA_QEMU_FLAGS)
 
-debug-uefi: $(BUILD_DIR)/kernel.elf $(DISK_IMAGE)
+debug-uefi: $(BUILD_DIR)/kernel.elf $(DISK_IMAGE) $(AHCI_DISK_IMAGE)
 	@if [ ! -f "$(OVMF_CODE)" ]; then echo "Missing OVMF_CODE at $(OVMF_CODE). Override the variable to point to your OVMF_CODE.fd."; exit 1; fi
 	@if [ ! -f "$(OVMF_VARS_TEMPLATE)" ] && [ ! -f "$(OVMF_VARS)" ]; then echo "Missing OVMF_VARS template at $(OVMF_VARS_TEMPLATE). Override OVMF_VARS_TEMPLATE or place a vars file at $(OVMF_VARS)."; exit 1; fi
 	@if [ ! -f "$(OVMF_VARS)" ] && [ -f "$(OVMF_VARS_TEMPLATE)" ]; then cp "$(OVMF_VARS_TEMPLATE)" "$(OVMF_VARS)"; fi

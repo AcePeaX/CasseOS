@@ -6,6 +6,7 @@
 #include "cpu/type.h"
 #include "libc/string.h"
 #include "drivers/usb/usb.h"
+#include "drivers/block/ahci.h"
 
 uint8_t cursor=0;
 bool end_command = false;
@@ -29,6 +30,10 @@ void shell_main_loop(){
         if(strcmp(command, "usb_scan")==0){
             kprint("Executing the scan...\n");
             pci_scan_for_usb_controllers();
+        }
+        else if(strcmp(command, "ahci_info")==0){
+            kprint("AHCI controller summary:\n");
+            ahci_print_summary();
         }
         else{
             kprint("Incorrect command: '");
