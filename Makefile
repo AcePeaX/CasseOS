@@ -114,14 +114,18 @@ $(DISK_IMAGE): $(BIN_DIR)/os-image.bin $(UEFI_EFI) scripts/build_disk_image.sh
 disk-image: $(DISK_IMAGE)
 
 qemu-bios: $(BIN_DIR)/os-image.bin $(AHCI_DISK_IMAGE)
-	@$(QEMU) $(QEMUFLAGS) -fda $(BIN_DIR)/os-image.bin -monitor stdio -display sdl $(EXTRA_QEMU_FLAGS)
+	@$(QEMU) $(QEMUFLAGS) \
+		-drive file=$(BIN_DIR)/os-image.bin,format=raw,if=ide,index=0,media=disk \
+		-boot order=c -monitor stdio -display sdl $(EXTRA_QEMU_FLAGS)
 
 qemu: qemu-bios
 
 run: qemu -device usb-tablet
 
 debug: $(BUILD_DIR)/kernel.elf $(BIN_DIR)/os-image.bin
-	$(QEMU) $(QEMUFLAGS) -fda $(BIN_DIR)/os-image.bin -monitor stdio -display sdl -s -S &
+	$(QEMU) $(QEMUFLAGS) \
+		-drive file=$(BIN_DIR)/os-image.bin,format=raw,if=ide,index=0,media=disk \
+		-boot order=c -monitor stdio -display sdl -s -S &
 	${GDB} -ex "target remote localhost:1234" -ex "symbol-file .build/kernel.elf"
 
 virtualbox: $(BIN_DIR)/os-image.bin
