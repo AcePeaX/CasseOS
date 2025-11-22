@@ -2,24 +2,24 @@
 # $< = first dependency
 # $^ = all dependencies
 
-GCC=x86_64-elf-gcc # Or /usr/local/cross/bin/x86_64-elf-gcc
+GCC=/usr/local/cross/bin/x86_64-elf-gcc
 #GCC=i386-elf-gcc or /usr/local/cross/bin/i386-elf-gcc
 #GCC="i386-elf-gcc" or /usr/local/cross/bin/i686-elf-gcc
 
-LD=x86_64-elf-ld # Or /usr/local/cross/bin/x86_64-elf-ld
+LD=/usr/local/cross/bin/x86_64-elf-ld
 #LD=i386-elf-ld or /usr/local/cross/bin/i386-elf-ld
 #LD=i686-elf-ld or /usr/local/cross/bin/i686-elf-ld
 
 UEFI_LD ?= ld
 
-GDB=x86_64-elf-gdb # Or /usr/local/cross/bin/x86_64-elf-gdb
+GDB=/usr/local/cross/bin/x86_64-elf-gdb
 #GDB=i386-elf-gdb or /usr/local/cross/bin/i386-elf-gdb
 #GDB="i686-elf-gdb" or /usr/local/cross/bin/i686-elf-gdb
 
-OBJCOPY=x86_64-elf-objcopy
+OBJCOPY=/usr/local/cross/bin/x86_64-elf-objcopy
 
 #QEMU=qemu-system-i386
-QEMU=qemu-system-x86_64
+QEMU=/usr/bin/qemu-system-x86_64
 
 KERNEL_START_MEM = 0x80000
 
