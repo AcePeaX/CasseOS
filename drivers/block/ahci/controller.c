@@ -6,6 +6,8 @@
 #include "libc/mem.h"
 #include "libc/string.h"
 
+extern kernel_bootinfo_t kernel_bootinfo;
+
 ahci_controller_t ahci_controllers[AHCI_MAX_CONTROLLERS];
 uint32_t ahci_controller_count = 0;
 

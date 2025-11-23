@@ -97,6 +97,9 @@ $(AHCI_DISK_IMAGE):
 	@echo "Creating AHCI disk image ($@, $(AHCI_DISK_SIZE_MB) MiB)..."
 	@dd if=/dev/zero of=$@ bs=1M count=$(AHCI_DISK_SIZE_MB) status=none
 
+ahci-disk: $(AHCI_DISK_IMAGE) $(BIN_DIR)/os-image.bin
+	@dd if=$(BIN_DIR)/os-image.bin of=$(AHCI_DISK_IMAGE) conv=notrunc status=none
+
 $(BUILD_DIR)/bootloader/uefi/%.o: $(UEFI_DIR)/%.c $(UEFI_HEADERS)
 	@./scripts/create_file_path.sh $@
 	$(GCC) $(UEFI_CFLAGS) -c $< -o $@
@@ -114,7 +117,7 @@ $(DISK_IMAGE): $(BIN_DIR)/os-image.bin $(UEFI_EFI) scripts/build_disk_image.sh
 
 disk-image: $(DISK_IMAGE)
 
-qemu-bios: $(BIN_DIR)/os-image.bin $(AHCI_DISK_IMAGE)
+qemu-bios: $(BIN_DIR)/os-image.bin ahci-disk
 	@$(QEMU) $(QEMUFLAGS) \
 		-drive file=$(BIN_DIR)/os-image.bin,format=raw,if=ide,index=0,media=disk \
 		-boot order=c -monitor stdio -display sdl $(EXTRA_QEMU_FLAGS)

@@ -197,6 +197,10 @@ bool ahci_port_initialize(ahci_controller_t *ctrl, uint8_t port_no) {
     ahci_port_start(port);
     state->initialized = true;
     debug_puts("[AHCI]   port started\n");
+    if (port->sig == 0xFFFFFFFF) {
+        debug_puts("[AHCI]   no signature after start\n");
+        return false;
+    }
     return true;
 }
 
