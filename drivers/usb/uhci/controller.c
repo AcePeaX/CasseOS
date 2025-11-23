@@ -7,6 +7,11 @@
 #include "libc/mem.h"
 #include "libc/function.h"
 
+#define UHCI_PCI_LEGSUP       0xC0
+#define UHCI_PCI_LEGCTLSTS    0xC2
+#define UHCI_LEGSUP_BIOS_OWNED 0x0001
+#define UHCI_LEGSUP_OS_OWNED   0x0002
+
 uint32_t frame_list[1024] __attribute__((aligned(4096)));
 
 uint32_t find_uhci_io_base(pci_device_t *device)
@@ -38,6 +43,31 @@ static void uhci_initialize_frame_list(void)
 {
     for (int i = 0; i < 1024; i++) frame_list[i] = 0x00000001; // T-bit
     UHCI_DBG("Initialized frame list with 1024 T-terminated entries\n");
+}
+
+static void uhci_claim_legacy_ownership(pci_device_t *dev)
+{
+    uint8_t bus = dev->bus, devn = dev->device, fun = dev->function;
+    uint16_t legsup = pci_config_read_word(bus, devn, fun, UHCI_PCI_LEGSUP);
+
+    uint16_t new_legsup = legsup;
+
+    if (legsup & UHCI_LEGSUP_BIOS_OWNED) {
+        new_legsup |= UHCI_LEGSUP_OS_OWNED;
+        pci_config_write_word(bus, devn, fun, UHCI_PCI_LEGSUP, new_legsup);
+        for (int i = 0; i < 100; ++i) {
+            legsup = pci_config_read_word(bus, devn, fun, UHCI_PCI_LEGSUP);
+            if ((legsup & UHCI_LEGSUP_BIOS_OWNED) == 0) break;
+            sleep_ms(1);
+        }
+    }
+
+    /* Leave OS owned asserted and clear BIOS bit/SMI routing. */
+    legsup = pci_config_read_word(bus, devn, fun, UHCI_PCI_LEGSUP);
+    legsup &= ~UHCI_LEGSUP_BIOS_OWNED;
+    legsup |= UHCI_LEGSUP_OS_OWNED;
+    pci_config_write_word(bus, devn, fun, UHCI_PCI_LEGSUP, legsup);
+    pci_config_write_word(bus, devn, fun, UHCI_PCI_LEGCTLSTS, 0);
 }
 
 static bool uhci_set_frame_list_base_address(uint16_t io_base, uint32_t frame_list_phys_addr)
@@ -78,6 +108,8 @@ static bool uhci_start_controller(uint16_t io_base)
 bool uhci_initialize_controller(usb_controller_t *controller)
 {
     uint16_t io_base = (uint16_t)controller->base_address;
+
+    uhci_claim_legacy_ownership(controller->pci_device);
 
     pci_enable_bus_mastering(controller->pci_device);
     UHCI_DBG("Bus mastering enabled\n");

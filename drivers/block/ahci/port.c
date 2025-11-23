@@ -1,6 +1,7 @@
 #include "drivers/block/ahci/ahci.h"
 #include "drivers/screen.h"
 #include "libc/mem.h"
+#include "libc/system.h"
 
 #define AHCI_GENERIC_TIMEOUT 1000000
 
@@ -34,10 +35,7 @@ bool ahci_port_device_present(volatile ahci_hba_port_t *port) {
     uint32_t ssts = port->ssts;
     uint32_t det = ssts & 0xF;
     uint32_t spd = (ssts >> 4) & 0xF;
-    if (det != 0x3) {
-        return false;
-    }
-    return spd != 0;
+    return (det == 0x3) && (spd != 0);
 }
 
 static bool ahci_wait_ready(volatile ahci_hba_port_t *port) {
@@ -94,6 +92,7 @@ static bool ahci_run_identify(ahci_port_state_t *state) {
     volatile ahci_hba_port_t *port = state->regs;
 
     if (!ahci_wait_ready(port)) {
+        debug_puts("[AHCI]   port not ready\n");
         return false;
     }
 
@@ -102,7 +101,7 @@ static bool ahci_run_identify(ahci_port_state_t *state) {
     memory_set(cmd_header, 0, sizeof(*cmd_header));
     cmd_header->dw0 = (sizeof(fis_reg_h2d_t) / 4) & 0x1F;
     cmd_header->dw0 |= (1u << 16);
-    cmd_header->ctba = (uint32_t)(uintptr_t)state->cmd_table;
+    cmd_header->ctba = (uint32_t)get_physical_address(state->cmd_table);
     cmd_header->ctbau = 0;
     cmd_header->prdbc = 0;
 
@@ -113,7 +112,7 @@ static bool ahci_run_identify(ahci_port_state_t *state) {
     memory_set(identify_buffer, 0, sizeof(identify_buffer));
 
     ahci_prdt_entry_t *prdt = &cmd_table->prdt_entry[0];
-    prdt->dba = (uint32_t)(uintptr_t)identify_buffer;
+    prdt->dba = (uint32_t)get_physical_address(identify_buffer);
     prdt->dbau = 0;
     prdt->reserved0 = 0;
     prdt->dbc = (512 - 1) | (1u << 31);
@@ -129,6 +128,7 @@ static bool ahci_run_identify(ahci_port_state_t *state) {
     port->ci = (1u << slot);
 
     if (!ahci_wait_for_command(port, slot)) {
+        debug_puts("[AHCI]   identify wait failed\n");
         return false;
     }
 
@@ -143,6 +143,7 @@ static bool ahci_run_identify(ahci_port_state_t *state) {
 
     state->sector_count = (sector_high != 0) ? sector_high : sector_low;
     state->identify_valid = true;
+    debug_puts("[AHCI]   identify ok\n");
     return true;
 }
 
@@ -151,6 +152,21 @@ bool ahci_port_initialize(ahci_controller_t *ctrl, uint8_t port_no) {
     volatile ahci_hba_port_t *port = state->regs;
 
     ahci_port_stop(port);
+    port->serr = (uint32_t)-1;
+    port->is = (uint32_t)-1;
+    port->cmd |= HBA_PxCMD_SUD | HBA_PxCMD_POD;
+
+    /* COMRESET to ensure a fresh signature/link when coming from BIOS. */
+    uint32_t sctl = port->sctl;
+    port->sctl = (sctl & ~0xF) | 0x1;
+    for (volatile int i = 0; i < 100000; ++i) { }
+    port->sctl = (sctl & ~0xF);
+    for (uint32_t i = 0; i < AHCI_GENERIC_TIMEOUT; ++i) {
+        uint32_t ssts = port->ssts;
+        uint32_t det = ssts & 0xF;
+        uint32_t spd = (ssts >> 4) & 0xF;
+        if (det == 0x3 && spd != 0) break;
+    }
 
     size_t cmd_list_bytes = AHCI_MAX_COMMAND_SLOTS * sizeof(ahci_command_header_t);
     state->cmd_headers = (ahci_command_header_t *)aligned_alloc(1024, cmd_list_bytes);
@@ -174,13 +190,18 @@ bool ahci_port_initialize(ahci_controller_t *ctrl, uint8_t port_no) {
     }
     memory_set(state->cmd_table, 0, sizeof(ahci_command_table_t));
 
-    port->clb = (uint32_t)(uintptr_t)state->cmd_headers;
+    printf("[AHCI]   port %u buffers: CLB=%p FB=%p CT=%p\n",
+           port_no, state->cmd_headers, state->recv_fis, state->cmd_table);
+    debug_puts("[AHCI]   port buffers ready\n");
+
+    port->clb = (uint32_t)get_physical_address(state->cmd_headers);
     port->clbu = 0;
-    port->fb = (uint32_t)(uintptr_t)state->recv_fis;
+    port->fb = (uint32_t)get_physical_address(state->recv_fis);
     port->fbu = 0;
 
     ahci_port_start(port);
     state->initialized = true;
+    debug_puts("[AHCI]   port started\n");
     return true;
 }
 

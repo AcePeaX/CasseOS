@@ -1,5 +1,6 @@
 #include "drivers/block/ahci/ahci.h"
 #include "drivers/screen.h"
+#include "libc/system.h"
 #include "libc/mem.h"
 #include "libc/string.h"
 
@@ -47,9 +48,13 @@ static void log_port_info(uint8_t port_no, volatile ahci_hba_port_t *port) {
 static void ahci_probe_controller(ahci_controller_t *ctrl) {
     ctrl->implemented_ports = ctrl->hba_mem->pi;
     ctrl->active_ports = 0;
+    debug_puts("[AHCI]   PI=");
+    debug_puthex(ctrl->implemented_ports);
+    debug_putc('\n');
 
     if (ctrl->implemented_ports == 0) {
         printf("[AHCI]   no ports implemented\n");
+        debug_puts("[AHCI]   no ports implemented\n");
         return;
     }
 
@@ -59,17 +64,20 @@ static void ahci_probe_controller(ahci_controller_t *ctrl) {
         }
 
         volatile ahci_hba_port_t *hba_port = &ctrl->hba_mem->ports[port];
+        debug_puts("[AHCI]   port ");
+        debug_putc('0' + port);
+        debug_puts(" ssts=");
+        debug_puthex(hba_port->ssts);
+        debug_puts(" sig=");
+        debug_puthex(hba_port->sig);
+        debug_putc('\n');
         if (!ahci_port_device_present(hba_port)) {
+            debug_puts("[AHCI]   port present bit false\n");
             continue;
         }
 
         ctrl->active_ports |= (1u << port);
         log_port_info(port, hba_port);
-
-        if (hba_port->sig != AHCI_SIG_SATA) {
-            printf("[AHCI]   skipping non-SATA port %u\n", port);
-            continue;
-        }
 
         ahci_port_state_t *state = &ctrl->port_state[port];
         memory_set(state, 0, sizeof(*state));
@@ -101,11 +109,25 @@ static void add_controller(pci_device_t *dev, uintptr_t abar) {
     entry->abar = abar;
     entry->hba_mem = (volatile ahci_hba_mem_t *)(uintptr_t)abar;
 
+    /* Ensure memory space + bus mastering are enabled. */
+    uint16_t cmd = pci_config_read_word(dev->bus, dev->device, dev->function, 0x04);
+    cmd |= (1u << 1) | (1u << 2); /* MSE | BME */
+    pci_config_write_word(dev->bus, dev->device, dev->function, 0x04, cmd);
+
+    /* Reset HBA and enable AHCI mode. */
+    volatile ahci_hba_mem_t *hba = entry->hba_mem;
+    hba->ghc |= 0x1; /* set HR */
+    for (int i = 0; i < 100000; ++i) {
+        if ((hba->ghc & 0x1) == 0) break;
+    }
+    hba->ghc |= (1u << 31); /* AE */
+
     log_ahci_device(dev, abar);
     ahci_probe_controller(entry);
 }
 
 void ahci_init(void) {
+    debug_puts("[AHCI] init start\n");
     ahci_controller_count = 0;
 
     for (uint16_t i = 0; i < pci_device_count; ++i) {
@@ -134,7 +156,9 @@ void ahci_init(void) {
 
     if (ahci_controller_count == 0) {
         printf("[AHCI] No AHCI controllers detected.\n");
+        debug_puts("[AHCI] no controllers\n");
     }
+    debug_puts("[AHCI] init done\n");
 }
 
 void ahci_print_summary(void) {

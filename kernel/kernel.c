@@ -18,6 +18,7 @@
 extern kernel_bootinfo_t kernel_bootinfo;
 
 void kernel_main() {
+    debug_puts("[BOOT] kernel_main start\n");
     cpu_enable_fpu_sse();
     isr_install();
     bool fb_ready = framebuffer_console_init(&kernel_bootinfo);
@@ -31,10 +32,15 @@ void kernel_main() {
         printf("[DEBUG] Screen size: (%d,%d)\n",get_screen_framebuffer_cols(), get_screen_framebuffer_rows());
     }
     pci_scan();
+    debug_puts("[BOOT] PCI scanned\n");
     ahci_init();
+    debug_puts("[BOOT] AHCI init done\n");
     pci_scan_for_usb_controllers();
+    debug_puts("[BOOT] USB controllers scanned\n");
     usb_enumerate_devices();
+    debug_puts("[BOOT] USB enumerate done\n");
     kbd_subsystem_init();
+    debug_puts("[BOOT] keyboard init done\n");
 
     
     while(true){

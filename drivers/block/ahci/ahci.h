@@ -20,6 +20,8 @@
 #define HBA_PxCMD_FRE  (1u << 4)
 #define HBA_PxCMD_FR   (1u << 14)
 #define HBA_PxCMD_CR   (1u << 15)
+#define HBA_PxCMD_SUD  (1u << 1)
+#define HBA_PxCMD_POD  (1u << 2)
 
 #define HBA_PxIS_TFES  (1u << 30)
 

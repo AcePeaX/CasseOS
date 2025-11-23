@@ -61,68 +61,42 @@ static size_t allocator_offset = 0;
 static AllocationHeader* free_list = NULL; // Start of the free list
 
 void* aligned_alloc(size_t alignment, size_t size) {
-    // Ensure alignment is at least the size of a pointer and a power of two
+    /* Ensure power-of-two alignment and minimum pointer size. */
     if (alignment < sizeof(void*)) {
         alignment = sizeof(void*);
     }
     if ((alignment & (alignment - 1)) != 0) {
-        return NULL; // Invalid alignment
+        return NULL;
     }
 
-    // Adjust size to include the AllocationHeader
-    size_t total_size = size + sizeof(AllocationHeader);
+    /* total bytes including header and padding */
+    size_t total_size = size + sizeof(AllocationHeader) + alignment;
 
-    // Search for a suitable free block
-    AllocationHeader** current = &free_list;
-    while (*current != NULL) {
-        if ((*current)->size >= total_size) {
-            // Found a suitable block
-            AllocationHeader* alloc_header = *current;
-            *current = alloc_header->next_free; // Remove from free list
-
-            // Calculate the aligned user data address
-            uintptr_t raw_address = (uintptr_t)(alloc_header + 1);
-            uintptr_t aligned_address = (raw_address + (alignment - 1)) & ~(alignment - 1);
-            size_t padding = aligned_address - raw_address;
-
-            if (padding > 0) {
-                // Need to adjust for alignment; create a new header
-                AllocationHeader* new_header = (AllocationHeader*)(aligned_address - sizeof(AllocationHeader));
-                new_header->size = alloc_header->size - padding;
-                alloc_header = new_header;
-            }
-
-            // Return the aligned user data pointer
-            return (void*)(alloc_header + 1);
+    /* Walk free list first (simple first-fit). */
+    for (AllocationHeader **cur = &free_list; *cur; cur = &(*cur)->next_free) {
+        if ((*cur)->size < total_size) {
+            continue;
         }
-
-        current = &((*current)->next_free);
+        uintptr_t raw = (uintptr_t)(*cur) + sizeof(AllocationHeader);
+        uintptr_t aligned = (raw + (alignment - 1)) & ~(alignment - 1);
+        AllocationHeader *hdr = (AllocationHeader *)(aligned - sizeof(AllocationHeader));
+        hdr->size = (*cur)->size;
+        *cur = (*cur)->next_free; /* remove from free list */
+        return (void *)aligned;
     }
 
-    // No suitable free block found; allocate from the buffer
-    uintptr_t current_address = (uintptr_t)&allocator_buffer[allocator_offset];
-
-    // Ensure the allocation header is aligned
-    size_t header_padding = (alignment - (current_address % alignment)) % alignment;
-    if (header_padding < sizeof(AllocationHeader)) {
-        header_padding += alignment;
-    }
-    current_address += header_padding;
-
-    // Check for buffer overflow
-    if (allocator_offset + header_padding + total_size > ALLOCATOR_SIZE) {
-        return NULL; // Not enough memory
+    /* Allocate from bump buffer. */
+    if (allocator_offset + total_size > ALLOCATOR_SIZE) {
+        return NULL;
     }
 
-    // Update the allocator offset
-    allocator_offset += header_padding + total_size;
+    uintptr_t raw = (uintptr_t)&allocator_buffer[allocator_offset] + sizeof(AllocationHeader);
+    uintptr_t aligned = (raw + (alignment - 1)) & ~(alignment - 1);
+    AllocationHeader *hdr = (AllocationHeader *)(aligned - sizeof(AllocationHeader));
+    hdr->size = total_size;
 
-    // Set up the allocation header
-    AllocationHeader* alloc_header = (AllocationHeader*)current_address;
-    alloc_header->size = total_size;
-
-    // Return the aligned user data pointer
-    return (void*)(alloc_header + 1);
+    allocator_offset += total_size;
+    return (void *)aligned;
 }
 
 void aligned_free(void* ptr) {
