@@ -91,11 +91,6 @@ static void ahci_decode_ident_string(char *dst, size_t dst_len, const uint16_t *
 static bool ahci_run_identify(ahci_port_state_t *state) {
     volatile ahci_hba_port_t *port = state->regs;
 
-    if (!ahci_wait_ready(port)) {
-        debug_puts("[AHCI]   port not ready\n");
-        return false;
-    }
-
     const uint32_t slot = 0;
     ahci_command_header_t *cmd_header = &state->cmd_headers[slot];
     memory_set(cmd_header, 0, sizeof(*cmd_header));
@@ -208,6 +203,12 @@ bool ahci_port_initialize(ahci_controller_t *ctrl, uint8_t port_no) {
 bool ahci_port_identify(ahci_controller_t *ctrl, uint8_t port_no) {
     ahci_port_state_t *state = &ctrl->port_state[port_no];
     if (!state->initialized || !state->cmd_headers || !state->cmd_table) {
+        return false;
+    }
+
+    /* If signature never latched, skip the port to avoid timeouts. */
+    if (state->regs->sig == 0xFFFFFFFF) {
+        debug_puts("[AHCI]   no signature, skipping port\n");
         return false;
     }
 

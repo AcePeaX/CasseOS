@@ -71,6 +71,11 @@ static void ahci_probe_controller(ahci_controller_t *ctrl) {
         debug_puts(" sig=");
         debug_puthex(hba_port->sig);
         debug_putc('\n');
+
+        if (hba_port->sig == 0xFFFFFFFF) {
+            debug_puts("[AHCI]   no signature, skipping port\n");
+            continue;
+        }
         if (!ahci_port_device_present(hba_port)) {
             debug_puts("[AHCI]   port present bit false\n");
             continue;
