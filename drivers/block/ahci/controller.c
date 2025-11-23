@@ -1,5 +1,7 @@
 #include "drivers/block/ahci/ahci.h"
 #include "drivers/screen.h"
+#include "cpu/timer.h"
+#include "kernel/include/kernel/bootinfo.h"
 #include "libc/system.h"
 #include "libc/mem.h"
 #include "libc/string.h"
@@ -71,11 +73,6 @@ static void ahci_probe_controller(ahci_controller_t *ctrl) {
         debug_puts(" sig=");
         debug_puthex(hba_port->sig);
         debug_putc('\n');
-
-        if (hba_port->sig == 0xFFFFFFFF) {
-            debug_puts("[AHCI]   no signature, skipping port\n");
-            continue;
-        }
         if (!ahci_port_device_present(hba_port)) {
             debug_puts("[AHCI]   port present bit false\n");
             continue;
@@ -119,8 +116,17 @@ static void add_controller(pci_device_t *dev, uintptr_t abar) {
     cmd |= (1u << 1) | (1u << 2); /* MSE | BME */
     pci_config_write_word(dev->bus, dev->device, dev->function, 0x04, cmd);
 
-    /* Reset HBA and enable AHCI mode. */
+    /* Claim BIOS -> OS handoff if supported. */
     volatile ahci_hba_mem_t *hba = entry->hba_mem;
+    if (hba->cap2 & 0x1) {
+        hba->bohc |= (1u << 1);
+        for (int i = 0; i < 1000; ++i) {
+            if ((hba->bohc & 0x1) == 0) break;
+            sleep_ms(1);
+        }
+    }
+
+    /* Reset HBA and enable AHCI mode. */
     hba->ghc |= 0x1; /* set HR */
     for (int i = 0; i < 100000; ++i) {
         if ((hba->ghc & 0x1) == 0) break;
@@ -133,6 +139,14 @@ static void add_controller(pci_device_t *dev, uintptr_t abar) {
 
 void ahci_init(void) {
     debug_puts("[AHCI] init start\n");
+
+    /* Skip AHCI entirely on BIOS boots; only UEFI populates bootinfo. */
+    if (kernel_bootinfo.magic != KERNEL_BOOTINFO_MAGIC) {
+        debug_puts("[AHCI] BIOS boot detected; skipping AHCI\n");
+        ahci_controller_count = 0;
+        return;
+    }
+
     ahci_controller_count = 0;
 
     for (uint16_t i = 0; i < pci_device_count; ++i) {
